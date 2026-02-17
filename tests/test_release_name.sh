@@ -8,7 +8,8 @@ set -euo pipefail
 generate_release_name() {
     local template="$1"
     local version="$2"
-    local date=$(date +%Y-%m-%d)
+    local date
+    date=$(date +%Y-%m-%d)
     
     # Replace placeholders
     local name="${template//\{version\}/${version}}"
@@ -33,7 +34,8 @@ run_test() {
     local expected="$4"
     
     test_count=$((test_count + 1))
-    local result=$(generate_release_name "$template" "$version")
+    local result
+    result=$(generate_release_name "$template" "$version")
     
     if [ "$result" = "$expected" ]; then
         echo -e "${GREEN}✓${NC} Test $test_count: $test_name"
@@ -62,11 +64,11 @@ run_test "Custom format template" \
     "v1.2.3 Release"
 
 # Test 3: Template with date
-current_date=$(date +%Y-%m-%d)
+date_value=$(date +%Y-%m-%d)
 run_test "Template with date placeholder" \
     "Release {version} - {date}" \
     "2.0.0" \
-    "Release 2.0.0 - $current_date"
+    "Release 2.0.0 - $date_value"
 
 # Test 4: Multiple version placeholders
 run_test "Multiple version placeholders" \
