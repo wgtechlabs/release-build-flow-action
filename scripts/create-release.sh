@@ -154,76 +154,87 @@ EOF
 # MAIN LOGIC
 # =============================================================================
 
-log_info "Creating GitHub Release for ${VERSION_TAG}..."
+MONOREPO="${MONOREPO:-false}"
+PACKAGES_DATA="${PACKAGES_DATA:-[]}"
 
-# Validate required inputs
-if [[ -z "${GITHUB_TOKEN}" ]]; then
-    log_error "GITHUB_TOKEN is required"
-    exit 1
-fi
-
-if [[ -z "${GITHUB_REPOSITORY}" ]]; then
-    log_error "GITHUB_REPOSITORY is not set"
-    exit 1
-fi
-
-if [[ -z "${VERSION}" ]] || [[ -z "${VERSION_TAG}" ]]; then
-    log_error "VERSION and VERSION_TAG are required"
-    exit 1
-fi
-
-# Generate release name
-RELEASE_NAME=$(generate_release_name "${RELEASE_NAME_TEMPLATE}" "${VERSION}")
-
-# Prepare release body
-RELEASE_BODY="${CHANGELOG_ENTRY}"
-
-if [[ -z "${RELEASE_BODY}" ]]; then
-    RELEASE_BODY="Release ${VERSION}"
-fi
-
-# Create release
-log_info "Creating release: ${RELEASE_NAME}"
-
-if RESPONSE=$(create_github_release "${VERSION_TAG}" "${RELEASE_NAME}" "${RELEASE_BODY}" "${RELEASE_DRAFT}" "${RELEASE_PRERELEASE}"); then
-    # Extract release information
-    if command -v jq &> /dev/null; then
-        RELEASE_ID=$(echo "${RESPONSE}" | jq -r '.id')
-        RELEASE_URL=$(echo "${RESPONSE}" | jq -r '.html_url')
-        RELEASE_UPLOAD_URL=$(echo "${RESPONSE}" | jq -r '.upload_url')
-    else
-        # Fallback: extract fields without jq
-        RELEASE_ID=$(echo "${RESPONSE}" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' | head -n 1)
-        RELEASE_URL=$(echo "${RESPONSE}" | sed -n 's/.*"html_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
-        RELEASE_UPLOAD_URL=$(echo "${RESPONSE}" | sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
-    fi
+# Check if we're in monorepo mode - if so, skip root release creation
+if [[ "${MONOREPO}" == "true" ]]; then
+    log_info "Monorepo mode enabled - skipping root release, will create per-package releases"
     
-    # Output results
-    echo "created=true" >> $GITHUB_OUTPUT
-    echo "release-id=${RELEASE_ID}" >> $GITHUB_OUTPUT
-    echo "release-url=${RELEASE_URL}" >> $GITHUB_OUTPUT
-    echo "release-upload-url=${RELEASE_UPLOAD_URL}" >> $GITHUB_OUTPUT
-    
-    log_success "Release created: ${RELEASE_URL}"
-else
+    # Set outputs for root release (not created in monorepo mode)
     echo "created=false" >> $GITHUB_OUTPUT
     echo "release-id=" >> $GITHUB_OUTPUT
     echo "release-url=" >> $GITHUB_OUTPUT
     echo "release-upload-url=" >> $GITHUB_OUTPUT
+else
+    # Single-package mode: create root release as normal
+    log_info "Creating GitHub Release for ${VERSION_TAG}..."
     
-    exit 1
+    # Validate required inputs
+    if [[ -z "${GITHUB_TOKEN}" ]]; then
+        log_error "GITHUB_TOKEN is required"
+        exit 1
+    fi
+    
+    if [[ -z "${GITHUB_REPOSITORY}" ]]; then
+        log_error "GITHUB_REPOSITORY is not set"
+        exit 1
+    fi
+    
+    if [[ -z "${VERSION}" ]] || [[ -z "${VERSION_TAG}" ]]; then
+        log_error "VERSION and VERSION_TAG are required"
+        exit 1
+    fi
+    
+    # Generate release name
+    RELEASE_NAME=$(generate_release_name "${RELEASE_NAME_TEMPLATE}" "${VERSION}")
+    
+    # Prepare release body
+    RELEASE_BODY="${CHANGELOG_ENTRY}"
+    
+    if [[ -z "${RELEASE_BODY}" ]]; then
+        RELEASE_BODY="Release ${VERSION}"
+    fi
+    
+    # Create release
+    log_info "Creating release: ${RELEASE_NAME}"
+    
+    if RESPONSE=$(create_github_release "${VERSION_TAG}" "${RELEASE_NAME}" "${RELEASE_BODY}" "${RELEASE_DRAFT}" "${RELEASE_PRERELEASE}"); then
+        # Extract release information
+        if command -v jq &> /dev/null; then
+            RELEASE_ID=$(echo "${RESPONSE}" | jq -r '.id')
+            RELEASE_URL=$(echo "${RESPONSE}" | jq -r '.html_url')
+            RELEASE_UPLOAD_URL=$(echo "${RESPONSE}" | jq -r '.upload_url')
+        else
+            # Fallback: extract fields without jq
+            RELEASE_ID=$(echo "${RESPONSE}" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' | head -n 1)
+            RELEASE_URL=$(echo "${RESPONSE}" | sed -n 's/.*"html_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+            RELEASE_UPLOAD_URL=$(echo "${RESPONSE}" | sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+        fi
+        
+        # Output results
+        echo "created=true" >> $GITHUB_OUTPUT
+        echo "release-id=${RELEASE_ID}" >> $GITHUB_OUTPUT
+        echo "release-url=${RELEASE_URL}" >> $GITHUB_OUTPUT
+        echo "release-upload-url=${RELEASE_UPLOAD_URL}" >> $GITHUB_OUTPUT
+        
+        log_success "Release created: ${RELEASE_URL}"
+    else
+        echo "created=false" >> $GITHUB_OUTPUT
+        echo "release-id=" >> $GITHUB_OUTPUT
+        echo "release-url=" >> $GITHUB_OUTPUT
+        echo "release-upload-url=" >> $GITHUB_OUTPUT
+        
+        exit 1
+    fi
+    
+    # Exit for single-package mode
+    exit 0
 fi
 
 # =============================================================================
 # MONOREPO MODE - Create per-package releases
 # =============================================================================
-
-MONOREPO="${MONOREPO:-false}"
-PACKAGES_DATA="${PACKAGES_DATA:-[]}"
-
-if [[ "${MONOREPO}" != "true" ]]; then
-    exit 0
-fi
 
 log_info "Creating monorepo package releases..."
 
@@ -231,12 +242,12 @@ log_info "Creating monorepo package releases..."
 RELEASES_CREATED="[]"
 
 if command -v jq &> /dev/null && [[ "${PACKAGES_DATA}" != "[]" ]]; then
-    echo "${PACKAGES_DATA}" | jq -c '.[]' | while IFS= read -r package; do
-        local pkg_name=$(echo "${package}" | jq -r '.name')
-        local pkg_path=$(echo "${package}" | jq -r '.path')
-        local pkg_version=$(echo "${package}" | jq -r '.version')
-        local pkg_tag=$(echo "${package}" | jq -r '.tag')
-        local bump_type=$(echo "${package}" | jq -r '.bumpType')
+    while IFS= read -r package; do
+        pkg_name=$(echo "${package}" | jq -r '.name')
+        pkg_path=$(echo "${package}" | jq -r '.path')
+        pkg_version=$(echo "${package}" | jq -r '.version')
+        pkg_tag=$(echo "${package}" | jq -r '.tag')
+        bump_type=$(echo "${package}" | jq -r '.bumpType')
         
         # Skip if no version bump
         if [[ "${bump_type}" == "none" ]] || [[ -z "${pkg_tag}" ]] || [[ "${pkg_tag}" == "null" ]]; then
@@ -245,7 +256,7 @@ if command -v jq &> /dev/null && [[ "${PACKAGES_DATA}" != "[]" ]]; then
         fi
         
         # Get package changelog entry
-        local pkg_changelog=""
+        pkg_changelog=""
         if [[ -f "${pkg_path}/CHANGELOG.md" ]]; then
             # Extract the latest entry from package changelog
             pkg_changelog=$(awk '/^## \[/{if(p)exit;p=1;next}p' "${pkg_path}/CHANGELOG.md" || echo "")
@@ -256,19 +267,19 @@ if command -v jq &> /dev/null && [[ "${PACKAGES_DATA}" != "[]" ]]; then
         fi
         
         # Generate release name for package
-        local pkg_release_name=$(generate_release_name "${RELEASE_NAME_TEMPLATE}" "${pkg_tag}")
+        pkg_release_name=$(generate_release_name "${RELEASE_NAME_TEMPLATE}" "${pkg_tag}")
         
         # Create release for package
         log_info "Creating release for ${pkg_name}: ${pkg_tag}"
         
         if RESPONSE=$(create_github_release "${pkg_tag}" "${pkg_release_name}" "${pkg_changelog}" "${RELEASE_DRAFT}" "${RELEASE_PRERELEASE}"); then
-            local release_id=$(echo "${RESPONSE}" | jq -r '.id')
-            local release_url=$(echo "${RESPONSE}" | jq -r '.html_url')
+            release_id=$(echo "${RESPONSE}" | jq -r '.id')
+            release_url=$(echo "${RESPONSE}" | jq -r '.html_url')
             
             log_success "Release created for ${pkg_name}: ${release_url}"
             
             # Track this release
-            local release_info=$(jq -n \
+            release_info=$(jq -n \
                 --arg name "${pkg_name}" \
                 --arg tag "${pkg_tag}" \
                 --arg url "${release_url}" \
@@ -279,12 +290,16 @@ if command -v jq &> /dev/null && [[ "${PACKAGES_DATA}" != "[]" ]]; then
         else
             log_error "Failed to create release for ${pkg_name}"
         fi
-    done
+    done < <(echo "${PACKAGES_DATA}" | jq -c '.[]')
     
-    # Output monorepo releases information
-    echo "monorepo-releases=${RELEASES_CREATED}" >> $GITHUB_OUTPUT
+    # Output monorepo releases information using multiline format
+    {
+        echo 'monorepo-releases<<EOF'
+        echo "${RELEASES_CREATED}"
+        echo 'EOF'
+    } >> "$GITHUB_OUTPUT"
     
-    local release_count=$(echo "${RELEASES_CREATED}" | jq 'length')
+    release_count=$(echo "${RELEASES_CREATED}" | jq 'length')
     log_success "Created ${release_count} package releases"
 fi
 

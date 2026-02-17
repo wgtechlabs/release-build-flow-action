@@ -95,7 +95,8 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null; then
     PACKAGES_UPDATED=$(echo "${PACKAGES_DATA}" | jq '[.[] | select(.bumpType != "none")]')
     PACKAGES_COUNT=$(echo "${PACKAGES_UPDATED}" | jq 'length')
     
-    echo "packages-updated=${PACKAGES_UPDATED}" >> $GITHUB_OUTPUT
+    # Output as compact JSON to avoid newlines in $GITHUB_OUTPUT
+    echo "packages-updated=$(echo "${PACKAGES_UPDATED}" | jq -c '.')" >> $GITHUB_OUTPUT
     echo "packages-count=${PACKAGES_COUNT}" >> $GITHUB_OUTPUT
     
     log_info "=== Monorepo Summary ==="

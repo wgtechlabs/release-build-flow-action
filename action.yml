@@ -329,7 +329,7 @@ runs:
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
         CHANGE_DETECTION: ${{ inputs.change-detection }}
-        SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping }}
+        SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
         UNIFIED_VERSION: ${{ inputs.unified-version }}
         CASCADE_BUMPS: ${{ inputs.cascade-bumps }}
     
@@ -347,7 +347,7 @@ runs:
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
         CHANGE_DETECTION: ${{ inputs.change-detection }}
-        SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping }}
+        SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
     
     - name: Generate Changelog
       id: generate-changelog

@@ -154,12 +154,17 @@ get_package_info() {
         
         # Determine scope from package name
         local scope=""
-        if [[ "${name}" =~ ^@([^/]+)/ ]]; then
+        if [[ "${name}" =~ ^@[^/]+/(.+)$ ]]; then
+            # For scoped packages like @org/pkg, use the package part as scope
             scope="${BASH_REMATCH[1]}"
         elif [[ "${name}" =~ ^([^/]+)$ ]]; then
-            # Try to infer scope from directory name
-            local dirname=$(basename "${pkg_dir}")
-            scope="${dirname}"
+            # For unscoped packages, use the package name
+            scope="${name}"
+        fi
+        
+        # If scope is still empty, try to infer from directory name
+        if [[ -z "${scope}" ]]; then
+            scope=$(basename "${pkg_dir}")
         fi
         
         # Build JSON object

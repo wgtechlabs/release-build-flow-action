@@ -242,11 +242,11 @@ log_info "Generating monorepo changelogs..."
 # Generate per-package changelogs
 if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; then
     if [[ "${PACKAGES_DATA}" != "[]" ]]; then
-        echo "${PACKAGES_DATA}" | jq -c '.[]' | while IFS= read -r package; do
-            local pkg_name=$(echo "${package}" | jq -r '.name')
-            local pkg_path=$(echo "${package}" | jq -r '.path')
-            local pkg_version=$(echo "${package}" | jq -r '.version')
-            local bump_type=$(echo "${package}" | jq -r '.bumpType')
+        while IFS= read -r package; do
+            pkg_name=$(echo "${package}" | jq -r '.name')
+            pkg_path=$(echo "${package}" | jq -r '.path')
+            pkg_version=$(echo "${package}" | jq -r '.version')
+            bump_type=$(echo "${package}" | jq -r '.bumpType')
             
             # Skip if no version bump
             if [[ "${bump_type}" == "none" ]]; then
@@ -255,7 +255,7 @@ if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; the
             fi
             
             # Get commits for this package
-            local pkg_commits="[]"
+            pkg_commits="[]"
             if [[ -n "${PER_PACKAGE_COMMITS}" ]] && [[ "${PER_PACKAGE_COMMITS}" != "{}" ]]; then
                 pkg_commits=$(echo "${PER_PACKAGE_COMMITS}" | jq --arg path "${pkg_path}" '.[$path] // []')
             fi
@@ -266,14 +266,14 @@ if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; the
             fi
             
             # Generate changelog entry for package
-            local pkg_changelog_entry=$(generate_entry "${pkg_version}" "${RELEASE_DATE}" "${pkg_commits}")
+            pkg_changelog_entry=$(generate_entry "${pkg_version}" "${RELEASE_DATE}" "${pkg_commits}")
             
             # Insert into package changelog
-            local pkg_changelog_path="${pkg_path}/CHANGELOG.md"
+            pkg_changelog_path="${pkg_path}/CHANGELOG.md"
             insert_entry "${pkg_changelog_path}" "${pkg_changelog_entry}"
             
             log_success "Generated changelog for ${pkg_name}"
-        done
+        done < <(echo "${PACKAGES_DATA}" | jq -c '.[]')
     fi
 fi
 

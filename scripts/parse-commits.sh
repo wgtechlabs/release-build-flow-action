@@ -309,16 +309,16 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
     
     # Route each commit to appropriate packages
     while IFS= read -r commit; do
-        local sha=$(echo "${commit}" | jq -r '.sha')
-        local scope=$(echo "${commit}" | jq -r '.scope')
-        local affected_packages=()
+        sha=$(echo "${commit}" | jq -r '.sha')
+        scope=$(echo "${commit}" | jq -r '.scope')
+        affected_packages=()
         
         # Scope-based routing
         if [[ "${CHANGE_DETECTION}" == "scope" ]] || [[ "${CHANGE_DETECTION}" == "both" ]]; then
             if [[ -n "${scope}" && "${scope}" != "null" ]]; then
                 # Try scope package mapping
                 if [[ -n "${SCOPE_PACKAGE_MAPPING}" ]]; then
-                    local pkg_path=$(echo "${SCOPE_PACKAGE_MAPPING}" | jq -r --arg scope "${scope}" '.[$scope] // empty')
+                    pkg_path=$(echo "${SCOPE_PACKAGE_MAPPING}" | jq -r --arg scope "${scope}" '.[$scope] // empty')
                     if [[ -n "${pkg_path}" ]]; then
                         affected_packages+=("${pkg_path}")
                     fi
@@ -327,7 +327,7 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
                 # Try matching with package scope
                 if [[ ${#affected_packages[@]} -eq 0 ]]; then
                     while IFS= read -r pkg_path; do
-                        local pkg_scope=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg path "${pkg_path}" '.[] | select(.path == $path) | .scope')
+                        pkg_scope=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg path "${pkg_path}" '.[] | select(.path == $path) | .scope')
                         if [[ "${pkg_scope}" == "${scope}" ]]; then
                             affected_packages+=("${pkg_path}")
                             break
@@ -339,15 +339,15 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
         
         # Path-based routing
         if [[ "${CHANGE_DETECTION}" == "path" ]] || [[ "${CHANGE_DETECTION}" == "both" ]]; then
-            local files=$(git diff-tree --no-commit-id --name-only -r "${sha}" 2>/dev/null || echo "")
+            files=$(git diff-tree --no-commit-id --name-only -r "${sha}" 2>/dev/null || echo "")
             
             while IFS= read -r file; do
                 [[ -z "${file}" ]] && continue
                 
-                local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select($file | startswith(.path + "/")) | .path' | head -1)
+                pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select($file | startswith(.path + "/")) | .path' | head -1)
                 if [[ -n "${pkg_path}" ]]; then
                     # Check if not already in array
-                    local found=false
+                    found=false
                     for existing in "${affected_packages[@]}"; do
                         if [[ "${existing}" == "${pkg_path}" ]]; then
                             found=true
@@ -375,8 +375,8 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
         done
     done < <(echo "${COMMITS_JSON}" | jq -c '.[]')
     
-    # Output per-package commits
-    echo "per-package-commits=${PER_PACKAGE_COMMITS}" >> $GITHUB_OUTPUT
+    # Output per-package commits as compact JSON to avoid newlines in $GITHUB_OUTPUT
+    echo "per-package-commits=$(echo "${PER_PACKAGE_COMMITS}" | jq -c '.')" >> $GITHUB_OUTPUT
     
     log_success "Routed commits to packages"
 fi
