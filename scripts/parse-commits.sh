@@ -308,7 +308,7 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
     done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
     
     # Route each commit to appropriate packages
-    echo "${COMMITS_JSON}" | jq -c '.[]' | while IFS= read -r commit; do
+    while IFS= read -r commit; do
         local sha=$(echo "${commit}" | jq -r '.sha')
         local scope=$(echo "${commit}" | jq -r '.scope')
         local affected_packages=()
@@ -373,7 +373,7 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
         for pkg_path in "${affected_packages[@]}"; do
             PER_PACKAGE_COMMITS=$(echo "${PER_PACKAGE_COMMITS}" | jq --arg path "${pkg_path}" --argjson commit "${commit}" '.[$path] += [$commit]')
         done
-    done
+    done < <(echo "${COMMITS_JSON}" | jq -c '.[]')
     
     # Output per-package commits
     echo "per-package-commits=${PER_PACKAGE_COMMITS}" >> $GITHUB_OUTPUT

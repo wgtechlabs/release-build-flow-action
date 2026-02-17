@@ -365,6 +365,7 @@ runs:
         PER_PACKAGE_CHANGELOG: ${{ inputs.per-package-changelog }}
         ROOT_CHANGELOG: ${{ inputs.root-changelog }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        PER_PACKAGE_COMMITS: ${{ steps.parse-commits.outputs.per-package-commits }}
     
     - name: Commit Changelog
       if: inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'

@@ -335,7 +335,7 @@ get_packages_from_files() {
     local sha="$1"
     local packages=()
     
-    if [[ ! command -v jq &> /dev/null ]] || [[ "${WORKSPACE_PACKAGES}" == "[]" ]]; then
+    if ! command -v jq &> /dev/null || [[ "${WORKSPACE_PACKAGES}" == "[]" ]]; then
         echo ""
         return
     fi
