@@ -190,7 +190,7 @@ inputs:
     default: 'true'
   
   cascade-bumps:
-    description: 'Automatically bump packages that depend on updated packages'
+    description: '(Reserved for future use) Automatically bump packages that depend on updated packages'
     required: false
     default: 'false'
   

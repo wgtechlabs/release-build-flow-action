@@ -223,7 +223,7 @@ jobs:
 | `scope-package-mapping` | JSON mapping of commit scopes to package paths (auto-detected if not provided) | `''` |
 | `per-package-changelog` | Generate CHANGELOG.md in each package directory | `true` |
 | `root-changelog` | Generate aggregated CHANGELOG.md at repository root | `true` |
-| `cascade-bumps` | Automatically bump packages that depend on updated packages | `false` |
+| `cascade-bumps` | *(Reserved for future use)* Automatically bump packages that depend on updated packages | `false` |
 | `unified-version` | All packages share a single unified version number | `false` |
 | `package-manager` | Package manager for workspace detection (`npm`, `bun`, `pnpm`, `yarn`) - auto-detected if not specified | `''` |
 
