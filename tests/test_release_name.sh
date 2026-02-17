@@ -3,20 +3,30 @@
 
 set -euo pipefail
 
-# Source the function from create-release.sh
-# Extract just the function definition
-generate_release_name() {
-    local template="$1"
-    local version="$2"
-    local date
-    date=$(date +%Y-%m-%d)
-    
-    # Replace placeholders
-    local name="${template//\{version\}/${version}}"
-    name="${name//\{date\}/${date}}"
-    
-    echo "${name}"
-}
+# Load the generate_release_name function from scripts/create-release.sh
+# Extract just the function definition to avoid executing the script's main logic.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CREATE_RELEASE_SCRIPT="${SCRIPT_DIR}/../scripts/create-release.sh"
+
+if [ ! -f "${CREATE_RELEASE_SCRIPT}" ]; then
+    echo "Error: cannot find create-release script at ${CREATE_RELEASE_SCRIPT}" >&2
+    exit 1
+fi
+
+generate_release_name_definition="$(
+    awk '
+        /^generate_release_name[[:space:]]*\(\)[[:space:]]*\{/ { in_func=1 }
+        in_func { print }
+        in_func && /^\}/ { exit }
+    ' "${CREATE_RELEASE_SCRIPT}"
+)"
+
+if [ -z "${generate_release_name_definition}" ]; then
+    echo "Error: could not extract generate_release_name definition from ${CREATE_RELEASE_SCRIPT}" >&2
+    exit 1
+fi
+
+eval "${generate_release_name_definition}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -64,11 +74,17 @@ run_test "Custom format template" \
     "v1.2.3 Release"
 
 # Test 3: Template with date
-date_value=$(date +%Y-%m-%d)
-run_test "Template with date placeholder" \
-    "Release {version} - {date}" \
-    "2.0.0" \
-    "Release 2.0.0 - $date_value"
+test_count=$((test_count + 1))
+result=$(generate_release_name "Release {version} - {date}" "2.0.0")
+if [[ "$result" =~ ^Release\ 2\.0\.0\ -\ [0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo -e "${GREEN}✓${NC} Test $test_count: Template with date placeholder"
+    passed_count=$((passed_count + 1))
+else
+    echo -e "${RED}✗${NC} Test $test_count: Template with date placeholder"
+    echo "  Expected format: Release 2.0.0 - YYYY-MM-DD"
+    echo "  Got:            [$result]"
+    failed_count=$((failed_count + 1))
+fi
 
 # Test 4: Multiple version placeholders
 run_test "Multiple version placeholders" \
@@ -76,17 +92,11 @@ run_test "Multiple version placeholders" \
     "3.1.4" \
     "3.1.4 - Version 3.1.4"
 
-# Test 5: Regression test for issue - NO extra closing brace
-result=$(generate_release_name "Release {version}" "0.1.0")
-test_count=$((test_count + 1))
-if [[ ! "$result" =~ \}$ ]]; then
-    echo -e "${GREEN}✓${NC} Test $test_count: No trailing brace (regression test)"
-    passed_count=$((passed_count + 1))
-else
-    echo -e "${RED}✗${NC} Test $test_count: No trailing brace (regression test)"
-    echo "  Result should not end with }: [$result]"
-    failed_count=$((failed_count + 1))
-fi
+# Test 5: Regression test - template without placeholders remains unchanged
+run_test "Template without placeholders unchanged" \
+    "Release" \
+    "0.1.0" \
+    "Release"
 
 echo ""
 echo "=== Test Summary ==="
