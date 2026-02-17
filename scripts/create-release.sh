@@ -41,6 +41,18 @@ log_error() {
     echo -e "${RED}❌ $1${NC}" >&2
 }
 
+# Escape JSON string manually
+escape_json_string() {
+    local str="$1"
+    # Replace backslash, double quote, newline, tab, carriage return
+    str="${str//\\/\\\\}"
+    str="${str//\"/\\\"}"
+    str="${str//$'\n'/\\n}"
+    str="${str//$'\t'/\\t}"
+    str="${str//$'\r'/\\r}"
+    echo "${str}"
+}
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -82,12 +94,21 @@ create_github_release() {
     local draft="$4"
     local prerelease="$5"
     
+    # Encode body for JSON
+    local encoded_body
+    if command -v jq &> /dev/null; then
+        encoded_body=$(echo -n "${body}" | jq -Rs .)
+    else
+        # Fallback: manual escaping
+        encoded_body="\"$(escape_json_string "${body}")\""
+    fi
+    
     # Prepare JSON payload
     local payload=$(cat <<EOF
 {
   "tag_name": "${tag}",
   "name": "${name}",
-  "body": $(echo -n "${body}" | jq -Rs .),
+  "body": ${encoded_body},
   "draft": ${draft},
   "prerelease": ${prerelease}
 }

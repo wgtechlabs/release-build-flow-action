@@ -48,6 +48,18 @@ log_debug() {
     echo -e "${CYAN}🔍 $1${NC}" >&2
 }
 
+# Escape JSON string manually (fallback if jq not available)
+escape_json_string() {
+    local str="$1"
+    # Replace backslash, double quote, newline, tab, carriage return
+    str="${str//\\/\\\\}"
+    str="${str//\"/\\\"}"
+    str="${str//$'\n'/\\n}"
+    str="${str//$'\t'/\\t}"
+    str="${str//$'\r'/\\r}"
+    echo "${str}"
+}
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -173,9 +185,9 @@ log_info "Parsing commits..."
 
 # Get commits to analyze
 if [[ -z "${PREVIOUS_TAG}" ]]; then
-    COMMITS=$(git log --format="%H|%s|%b" --no-merges)
+    COMMITS=$(git log --format="%H%x00%s%x00%b%x00" --no-merges)
 else
-    COMMITS=$(git log "${PREVIOUS_TAG}..HEAD" --format="%H|%s|%b" --no-merges)
+    COMMITS=$(git log "${PREVIOUS_TAG}..HEAD" --format="%H%x00%s%x00%b%x00" --no-merges)
 fi
 
 # Initialize counters
@@ -191,7 +203,7 @@ TOTAL_COUNT=0
 COMMITS_JSON="[]"
 
 # Process each commit
-while IFS='|' read -r sha subject body; do
+while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r -d $'\0' body; do
     # Parse commit
     IFS='|' read -r type scope breaking description <<< "$(parse_commit "${subject}" "${body}")"
     
@@ -260,11 +272,17 @@ while IFS='|' read -r sha subject body; do
                 "description": $desc
             }]')
     else
-        # Fallback: build simple JSON manually (less robust)
+        # Fallback: build JSON manually with proper escaping
+        local escaped_sha=$(escape_json_string "${sha}")
+        local escaped_type=$(escape_json_string "${type}")
+        local escaped_scope=$(escape_json_string "${scope}")
+        local escaped_section=$(escape_json_string "${SECTION}")
+        local escaped_desc=$(escape_json_string "${description}")
+        
         if [[ "${COMMITS_JSON}" == "[]" ]]; then
-            COMMITS_JSON="[{\"sha\":\"${sha}\",\"type\":\"${type}\",\"scope\":\"${scope}\",\"section\":\"${SECTION}\",\"description\":\"${description}\"}]"
+            COMMITS_JSON="[{\"sha\":\"${escaped_sha}\",\"type\":\"${escaped_type}\",\"scope\":\"${escaped_scope}\",\"section\":\"${escaped_section}\",\"description\":\"${escaped_desc}\"}]"
         else
-            COMMITS_JSON="${COMMITS_JSON%]},{\"sha\":\"${sha}\",\"type\":\"${type}\",\"scope\":\"${scope}\",\"section\":\"${SECTION}\",\"description\":\"${description}\"}]"
+            COMMITS_JSON="${COMMITS_JSON%]},{\"sha\":\"${escaped_sha}\",\"type\":\"${escaped_type}\",\"scope\":\"${escaped_scope}\",\"section\":\"${escaped_section}\",\"description\":\"${escaped_desc}\"}]"
         fi
     fi
     

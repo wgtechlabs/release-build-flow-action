@@ -141,12 +141,13 @@ bump_version() {
 get_commits_since_tag() {
     local tag="$1"
     
+    # Use null byte as delimiter (more reliable than pipe)
     if [[ -z "${tag}" ]] || [[ "${INCLUDE_ALL_COMMITS}" == "true" ]]; then
         # Get all commits
-        git log --format="%H|%s|%b" --no-merges
+        git log --format="%H%x00%s%x00%b%x00" --no-merges
     else
         # Get commits since tag
-        git log "${tag}..HEAD" --format="%H|%s|%b" --no-merges
+        git log "${tag}..HEAD" --format="%H%x00%s%x00%b%x00" --no-merges
     fi
 }
 
@@ -163,7 +164,7 @@ determine_bump_type() {
     local has_minor=false
     local has_patch=false
     
-    while IFS='|' read -r sha subject body; do
+    while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r -d $'\0' body; do
         # Combine subject and body for searching
         local full_message="${subject}${body:+ }${body}"
         

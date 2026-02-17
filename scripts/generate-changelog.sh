@@ -41,6 +41,16 @@ log_error() {
     echo -e "${RED}❌ $1${NC}" >&2
 }
 
+# Check for jq and warn if not available
+check_jq() {
+    if ! command -v jq &> /dev/null; then
+        log_warning "jq is not installed. Fallback parsing will be used (less reliable)."
+        log_warning "For best results, install jq: https://stedolan.github.io/jq/"
+        return 1
+    fi
+    return 0
+}
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -97,8 +107,15 @@ generate_entry() {
                 .[] | select(.section == $sec) | "- \(.description)"
             ' 2>/dev/null || echo "")
         else
-            # Fallback: basic parsing (less robust)
-            items=$(echo "${commits_json}" | grep -o "\"section\":\"${section}\"" -A 1 | grep -o "\"description\":\"[^\"]*\"" | cut -d'"' -f4 | sed 's/^/- /' || echo "")
+            # Fallback: Try to parse JSON manually (warning already issued)
+            # This is a best-effort approach and may not handle all edge cases
+            items=$(echo "${commits_json}" | grep -o "\"section\":\"${section}\"" | wc -l)
+            if [[ "${items}" -gt 0 ]]; then
+                log_warning "Found ${items} ${section} item(s) but jq is required for proper parsing"
+                items=""  # Skip if jq not available to avoid corrupted output
+            else
+                items=""
+            fi
         fi
         
         # Add section if it has items
@@ -166,6 +183,9 @@ insert_entry() {
 # =============================================================================
 
 log_info "Generating changelog entry for ${VERSION}..."
+
+# Check jq availability
+check_jq
 
 # Check if we have commits
 if [[ "${COMMITS_JSON}" == "[]" ]] || [[ -z "${COMMITS_JSON}" ]]; then
