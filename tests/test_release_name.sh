@@ -76,7 +76,7 @@ run_test "Custom format template" \
 # Test 3: Template with date
 test_count=$((test_count + 1))
 result=$(generate_release_name "Release {version} - {date}" "2.0.0")
-if [[ "$result" =~ ^Release\ 2\.0\.0\ -\ [0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+if [[ "$result" =~ ^Release\ 2\.0\.0\ -\ [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$ ]]; then
     echo -e "${GREEN}✓${NC} Test $test_count: Template with date placeholder"
     passed_count=$((passed_count + 1))
 else
