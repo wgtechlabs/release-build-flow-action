@@ -1,0 +1,351 @@
+name: 'Release Build Flow Action'
+description: 'Automated release creation and changelog maintenance using Clean Commit convention and Keep a Changelog format'
+author: 'WG Technology Labs'
+
+branding:
+  icon: 'tag'
+  color: 'purple'
+
+inputs:
+  # GitHub Token Configuration
+  github-token:
+    description: 'GitHub token for creating releases and tags'
+    required: false
+    default: ${{ github.token }}
+  
+  # Branch Configuration
+  main-branch:
+    description: 'Name of the main/production branch'
+    required: false
+    default: 'main'
+  
+  dev-branch:
+    description: 'Name of the development branch'
+    required: false
+    default: 'dev'
+  
+  # Version Configuration
+  version-prefix:
+    description: 'Prefix for version tags (e.g., v for v1.2.3)'
+    required: false
+    default: 'v'
+  
+  initial-version:
+    description: 'Initial version if no tags exist'
+    required: false
+    default: '0.1.0'
+  
+  prerelease-prefix:
+    description: 'Prefix for prerelease versions (e.g., beta, alpha, rc)'
+    required: false
+    default: ''
+  
+  # Changelog Configuration
+  changelog-path:
+    description: 'Path to CHANGELOG.md file'
+    required: false
+    default: './CHANGELOG.md'
+  
+  changelog-enabled:
+    description: 'Enable automatic changelog generation'
+    required: false
+    default: 'true'
+  
+  # Commit Type Mapping (Clean Commit to Keep a Changelog)
+  commit-type-mapping:
+    description: 'JSON mapping of commit types to changelog sections (default: standard mapping)'
+    required: false
+    default: |
+      {
+        "feat": "Added",
+        "new": "Added",
+        "add": "Added",
+        "fix": "Fixed",
+        "bugfix": "Fixed",
+        "security": "Security",
+        "perf": "Changed",
+        "refactor": "Changed",
+        "update": "Changed",
+        "change": "Changed",
+        "chore": "Changed",
+        "deprecate": "Deprecated",
+        "remove": "Removed",
+        "delete": "Removed"
+      }
+  
+  # Exclusion Configuration
+  exclude-types:
+    description: 'Comma-separated list of commit types to exclude from changelog (e.g., docs,style,test)'
+    required: false
+    default: 'docs,style,test,ci,build'
+  
+  exclude-scopes:
+    description: 'Comma-separated list of commit scopes to exclude from changelog'
+    required: false
+    default: ''
+  
+  # Version Bump Rules
+  major-keywords:
+    description: 'Comma-separated keywords that trigger major version bump'
+    required: false
+    default: 'BREAKING CHANGE,BREAKING-CHANGE,breaking'
+  
+  minor-keywords:
+    description: 'Comma-separated keywords that trigger minor version bump'
+    required: false
+    default: 'feat,new,add'
+  
+  patch-keywords:
+    description: 'Comma-separated keywords that trigger patch version bump'
+    required: false
+    default: 'fix,bugfix,security,perf'
+  
+  # Release Configuration
+  create-release:
+    description: 'Enable GitHub Release creation'
+    required: false
+    default: 'true'
+  
+  release-draft:
+    description: 'Create release as draft'
+    required: false
+    default: 'false'
+  
+  release-prerelease:
+    description: 'Mark release as prerelease'
+    required: false
+    default: 'false'
+  
+  release-name-template:
+    description: 'Template for release name (supports {version}, {date})'
+    required: false
+    default: 'Release {version}'
+  
+  # Git Configuration
+  git-user-name:
+    description: 'Git user name for commits'
+    required: false
+    default: 'github-actions[bot]'
+  
+  git-user-email:
+    description: 'Git user email for commits'
+    required: false
+    default: 'github-actions[bot]@users.noreply.github.com'
+  
+  commit-changelog:
+    description: 'Commit and push changelog changes back to repository'
+    required: false
+    default: 'true'
+  
+  # Advanced Options
+  dry-run:
+    description: 'Run without creating tags or releases (testing mode)'
+    required: false
+    default: 'false'
+  
+  tag-only:
+    description: 'Only create tag without GitHub Release'
+    required: false
+    default: 'false'
+  
+  fetch-depth:
+    description: 'Number of commits to fetch for changelog (0 for all)'
+    required: false
+    default: '0'
+  
+  include-all-commits:
+    description: 'Include all commits in changelog, not just since last tag'
+    required: false
+    default: 'false'
+
+outputs:
+  # Version Outputs
+  version:
+    description: 'Generated version number (e.g., 1.2.3)'
+    value: ${{ steps.generate-outputs.outputs.version }}
+  
+  version-tag:
+    description: 'Full version tag with prefix (e.g., v1.2.3)'
+    value: ${{ steps.generate-outputs.outputs.version-tag }}
+  
+  previous-version:
+    description: 'Previous version number'
+    value: ${{ steps.generate-outputs.outputs.previous-version }}
+  
+  version-bump-type:
+    description: 'Type of version bump (major, minor, patch, or none)'
+    value: ${{ steps.generate-outputs.outputs.version-bump-type }}
+  
+  # Release Outputs
+  release-created:
+    description: 'Whether a release was created (true/false)'
+    value: ${{ steps.generate-outputs.outputs.release-created }}
+  
+  release-id:
+    description: 'GitHub Release ID'
+    value: ${{ steps.generate-outputs.outputs.release-id }}
+  
+  release-url:
+    description: 'GitHub Release URL'
+    value: ${{ steps.generate-outputs.outputs.release-url }}
+  
+  release-upload-url:
+    description: 'GitHub Release upload URL for assets'
+    value: ${{ steps.generate-outputs.outputs.release-upload-url }}
+  
+  # Changelog Outputs
+  changelog-updated:
+    description: 'Whether changelog was updated (true/false)'
+    value: ${{ steps.generate-outputs.outputs.changelog-updated }}
+  
+  changelog-entry:
+    description: 'Generated changelog entry for this version'
+    value: ${{ steps.generate-outputs.outputs.changelog-entry }}
+  
+  commit-count:
+    description: 'Number of commits included in this release'
+    value: ${{ steps.generate-outputs.outputs.commit-count }}
+  
+  # Categorized Commit Counts
+  added-count:
+    description: 'Number of Added changes'
+    value: ${{ steps.generate-outputs.outputs.added-count }}
+  
+  changed-count:
+    description: 'Number of Changed items'
+    value: ${{ steps.generate-outputs.outputs.changed-count }}
+  
+  deprecated-count:
+    description: 'Number of Deprecated items'
+    value: ${{ steps.generate-outputs.outputs.deprecated-count }}
+  
+  removed-count:
+    description: 'Number of Removed items'
+    value: ${{ steps.generate-outputs.outputs.removed-count }}
+  
+  fixed-count:
+    description: 'Number of Fixed items'
+    value: ${{ steps.generate-outputs.outputs.fixed-count }}
+  
+  security-count:
+    description: 'Number of Security fixes'
+    value: ${{ steps.generate-outputs.outputs.security-count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate Inputs
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/validate-inputs.sh
+      env:
+        MAIN_BRANCH: ${{ inputs.main-branch }}
+        DEV_BRANCH: ${{ inputs.dev-branch }}
+        VERSION_PREFIX: ${{ inputs.version-prefix }}
+        INITIAL_VERSION: ${{ inputs.initial-version }}
+    
+    - name: Detect Version Bump
+      id: detect-version
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/detect-version-bump.sh
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        VERSION_PREFIX: ${{ inputs.version-prefix }}
+        INITIAL_VERSION: ${{ inputs.initial-version }}
+        PRERELEASE_PREFIX: ${{ inputs.prerelease-prefix }}
+        MAJOR_KEYWORDS: ${{ inputs.major-keywords }}
+        MINOR_KEYWORDS: ${{ inputs.minor-keywords }}
+        PATCH_KEYWORDS: ${{ inputs.patch-keywords }}
+        FETCH_DEPTH: ${{ inputs.fetch-depth }}
+        INCLUDE_ALL_COMMITS: ${{ inputs.include-all-commits }}
+    
+    - name: Parse Commits
+      id: parse-commits
+      if: steps.detect-version.outputs.version-bump-type != 'none'
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/parse-commits.sh
+      env:
+        COMMIT_TYPE_MAPPING: ${{ inputs.commit-type-mapping }}
+        EXCLUDE_TYPES: ${{ inputs.exclude-types }}
+        EXCLUDE_SCOPES: ${{ inputs.exclude-scopes }}
+        PREVIOUS_TAG: ${{ steps.detect-version.outputs.previous-tag }}
+    
+    - name: Generate Changelog
+      id: generate-changelog
+      if: inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none'
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/generate-changelog.sh
+      env:
+        CHANGELOG_PATH: ${{ inputs.changelog-path }}
+        VERSION: ${{ steps.detect-version.outputs.version }}
+        VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
+        COMMITS_JSON: ${{ steps.parse-commits.outputs.commits-json }}
+    
+    - name: Commit Changelog
+      if: inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
+      shell: bash
+      run: |
+        git config --global user.name "${{ inputs.git-user-name }}"
+        git config --global user.email "${{ inputs.git-user-email }}"
+        
+        if [[ -n "$(git status --porcelain)" ]]; then
+          git add "${{ inputs.changelog-path }}"
+          git commit -m "chore: update CHANGELOG.md for ${{ steps.detect-version.outputs.version-tag }}"
+          git push
+        fi
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+    
+    - name: Create Tag
+      if: steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
+      shell: bash
+      run: |
+        git config --global user.name "${{ inputs.git-user-name }}"
+        git config --global user.email "${{ inputs.git-user-email }}"
+        
+        git tag -a "${{ steps.detect-version.outputs.version-tag }}" -m "Release ${{ steps.detect-version.outputs.version-tag }}"
+        git push origin "${{ steps.detect-version.outputs.version-tag }}"
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+    
+    - name: Create Release
+      id: create-release
+      if: inputs.create-release == 'true' && inputs.tag-only == 'false' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/create-release.sh
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        VERSION: ${{ steps.detect-version.outputs.version }}
+        VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
+        RELEASE_NAME_TEMPLATE: ${{ inputs.release-name-template }}
+        RELEASE_DRAFT: ${{ inputs.release-draft }}
+        RELEASE_PRERELEASE: ${{ inputs.release-prerelease }}
+        CHANGELOG_ENTRY: ${{ steps.generate-changelog.outputs.changelog-entry }}
+    
+    - name: Generate Outputs
+      id: generate-outputs
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/generate-outputs.sh
+      env:
+        VERSION: ${{ steps.detect-version.outputs.version }}
+        VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
+        PREVIOUS_VERSION: ${{ steps.detect-version.outputs.previous-version }}
+        VERSION_BUMP_TYPE: ${{ steps.detect-version.outputs.version-bump-type }}
+        CHANGELOG_UPDATED: ${{ steps.generate-changelog.outputs.updated }}
+        CHANGELOG_ENTRY: ${{ steps.generate-changelog.outputs.changelog-entry }}
+        COMMIT_COUNT: ${{ steps.parse-commits.outputs.commit-count }}
+        ADDED_COUNT: ${{ steps.parse-commits.outputs.added-count }}
+        CHANGED_COUNT: ${{ steps.parse-commits.outputs.changed-count }}
+        DEPRECATED_COUNT: ${{ steps.parse-commits.outputs.deprecated-count }}
+        REMOVED_COUNT: ${{ steps.parse-commits.outputs.removed-count }}
+        FIXED_COUNT: ${{ steps.parse-commits.outputs.fixed-count }}
+        SECURITY_COUNT: ${{ steps.parse-commits.outputs.security-count }}
+        RELEASE_ID: ${{ steps.create-release.outputs.release-id }}
+        RELEASE_URL: ${{ steps.create-release.outputs.release-url }}
+        RELEASE_UPLOAD_URL: ${{ steps.create-release.outputs.release-upload-url }}
+        RELEASE_CREATED: ${{ steps.create-release.outputs.created }}
