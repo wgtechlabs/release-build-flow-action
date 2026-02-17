@@ -83,6 +83,33 @@ echo "security-count=${SECURITY_COUNT:-0}" >> $GITHUB_OUTPUT
 
 log_success "Outputs generated successfully"
 
+# =============================================================================
+# MONOREPO OUTPUTS
+# =============================================================================
+
+MONOREPO="${MONOREPO:-false}"
+PACKAGES_DATA="${PACKAGES_DATA:-[]}"
+
+if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null; then
+    # Filter packages that were updated
+    PACKAGES_UPDATED=$(echo "${PACKAGES_DATA}" | jq '[.[] | select(.bumpType != "none")]')
+    PACKAGES_COUNT=$(echo "${PACKAGES_UPDATED}" | jq 'length')
+    
+    echo "packages-updated=${PACKAGES_UPDATED}" >> $GITHUB_OUTPUT
+    echo "packages-count=${PACKAGES_COUNT}" >> $GITHUB_OUTPUT
+    
+    log_info "=== Monorepo Summary ==="
+    log_info "Packages Updated: ${PACKAGES_COUNT}"
+    
+    # List updated packages
+    echo "${PACKAGES_UPDATED}" | jq -r '.[] | "  - \(.name) \(.oldVersion) → \(.version) (\(.bumpType))"' | while IFS= read -r line; do
+        log_info "${line}"
+    done
+else
+    echo "packages-updated=[]" >> $GITHUB_OUTPUT
+    echo "packages-count=0" >> $GITHUB_OUTPUT
+fi
+
 # Display summary
 log_info "=== Release Summary ==="
 log_info "Version: ${VERSION:-none}"

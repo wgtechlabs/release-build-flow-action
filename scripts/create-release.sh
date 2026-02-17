@@ -213,3 +213,79 @@ else
     
     exit 1
 fi
+
+# =============================================================================
+# MONOREPO MODE - Create per-package releases
+# =============================================================================
+
+MONOREPO="${MONOREPO:-false}"
+PACKAGES_DATA="${PACKAGES_DATA:-[]}"
+
+if [[ "${MONOREPO}" != "true" ]]; then
+    exit 0
+fi
+
+log_info "Creating monorepo package releases..."
+
+# Track created releases
+RELEASES_CREATED="[]"
+
+if command -v jq &> /dev/null && [[ "${PACKAGES_DATA}" != "[]" ]]; then
+    echo "${PACKAGES_DATA}" | jq -c '.[]' | while IFS= read -r package; do
+        local pkg_name=$(echo "${package}" | jq -r '.name')
+        local pkg_path=$(echo "${package}" | jq -r '.path')
+        local pkg_version=$(echo "${package}" | jq -r '.version')
+        local pkg_tag=$(echo "${package}" | jq -r '.tag')
+        local bump_type=$(echo "${package}" | jq -r '.bumpType')
+        
+        # Skip if no version bump
+        if [[ "${bump_type}" == "none" ]] || [[ -z "${pkg_tag}" ]] || [[ "${pkg_tag}" == "null" ]]; then
+            log_info "Skipping ${pkg_name} (no version bump)"
+            continue
+        fi
+        
+        # Get package changelog entry
+        local pkg_changelog=""
+        if [[ -f "${pkg_path}/CHANGELOG.md" ]]; then
+            # Extract the latest entry from package changelog
+            pkg_changelog=$(awk '/^## \[/{if(p)exit;p=1;next}p' "${pkg_path}/CHANGELOG.md" || echo "")
+        fi
+        
+        if [[ -z "${pkg_changelog}" ]]; then
+            pkg_changelog="Release ${pkg_tag}"
+        fi
+        
+        # Generate release name for package
+        local pkg_release_name=$(generate_release_name "${RELEASE_NAME_TEMPLATE}" "${pkg_tag}")
+        
+        # Create release for package
+        log_info "Creating release for ${pkg_name}: ${pkg_tag}"
+        
+        if RESPONSE=$(create_github_release "${pkg_tag}" "${pkg_release_name}" "${pkg_changelog}" "${RELEASE_DRAFT}" "${RELEASE_PRERELEASE}"); then
+            local release_id=$(echo "${RESPONSE}" | jq -r '.id')
+            local release_url=$(echo "${RESPONSE}" | jq -r '.html_url')
+            
+            log_success "Release created for ${pkg_name}: ${release_url}"
+            
+            # Track this release
+            local release_info=$(jq -n \
+                --arg name "${pkg_name}" \
+                --arg tag "${pkg_tag}" \
+                --arg url "${release_url}" \
+                --arg id "${release_id}" \
+                '{name: $name, tag: $tag, url: $url, id: $id}')
+            
+            RELEASES_CREATED=$(echo "${RELEASES_CREATED}" | jq --argjson release "${release_info}" '. += [$release]')
+        else
+            log_error "Failed to create release for ${pkg_name}"
+        fi
+    done
+    
+    # Output monorepo releases information
+    echo "monorepo-releases=${RELEASES_CREATED}" >> $GITHUB_OUTPUT
+    
+    local release_count=$(echo "${RELEASES_CREATED}" | jq 'length')
+    log_success "Created ${release_count} package releases"
+fi
+
+log_success "Monorepo releases created successfully"

@@ -287,6 +287,100 @@ else
     git log "${PREVIOUS_TAG}..HEAD" --format="%H%x00%s%x00%b%x00" --no-merges
 fi)
 
+# =============================================================================
+# MONOREPO MODE - Route commits to packages
+# =============================================================================
+
+MONOREPO="${MONOREPO:-false}"
+WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
+CHANGE_DETECTION="${CHANGE_DETECTION:-both}"
+SCOPE_PACKAGE_MAPPING="${SCOPE_PACKAGE_MAPPING:-}"
+
+if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+    log_info "Routing commits to monorepo packages..."
+    
+    # Create per-package commits JSON
+    PER_PACKAGE_COMMITS="{}"
+    
+    # Initialize each package with empty commits array
+    while IFS= read -r pkg_path; do
+        PER_PACKAGE_COMMITS=$(echo "${PER_PACKAGE_COMMITS}" | jq --arg path "${pkg_path}" '.[$path] = []')
+    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+    
+    # Route each commit to appropriate packages
+    echo "${COMMITS_JSON}" | jq -c '.[]' | while IFS= read -r commit; do
+        local sha=$(echo "${commit}" | jq -r '.sha')
+        local scope=$(echo "${commit}" | jq -r '.scope')
+        local affected_packages=()
+        
+        # Scope-based routing
+        if [[ "${CHANGE_DETECTION}" == "scope" ]] || [[ "${CHANGE_DETECTION}" == "both" ]]; then
+            if [[ -n "${scope}" && "${scope}" != "null" ]]; then
+                # Try scope package mapping
+                if [[ -n "${SCOPE_PACKAGE_MAPPING}" ]]; then
+                    local pkg_path=$(echo "${SCOPE_PACKAGE_MAPPING}" | jq -r --arg scope "${scope}" '.[$scope] // empty')
+                    if [[ -n "${pkg_path}" ]]; then
+                        affected_packages+=("${pkg_path}")
+                    fi
+                fi
+                
+                # Try matching with package scope
+                if [[ ${#affected_packages[@]} -eq 0 ]]; then
+                    while IFS= read -r pkg_path; do
+                        local pkg_scope=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg path "${pkg_path}" '.[] | select(.path == $path) | .scope')
+                        if [[ "${pkg_scope}" == "${scope}" ]]; then
+                            affected_packages+=("${pkg_path}")
+                            break
+                        fi
+                    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+                fi
+            fi
+        fi
+        
+        # Path-based routing
+        if [[ "${CHANGE_DETECTION}" == "path" ]] || [[ "${CHANGE_DETECTION}" == "both" ]]; then
+            local files=$(git diff-tree --no-commit-id --name-only -r "${sha}" 2>/dev/null || echo "")
+            
+            while IFS= read -r file; do
+                [[ -z "${file}" ]] && continue
+                
+                local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select($file | startswith(.path + "/")) | .path' | head -1)
+                if [[ -n "${pkg_path}" ]]; then
+                    # Check if not already in array
+                    local found=false
+                    for existing in "${affected_packages[@]}"; do
+                        if [[ "${existing}" == "${pkg_path}" ]]; then
+                            found=true
+                            break
+                        fi
+                    done
+                    
+                    if [[ "${found}" == "false" ]]; then
+                        affected_packages+=("${pkg_path}")
+                    fi
+                fi
+            done <<< "${files}"
+        fi
+        
+        # If no packages matched, add to all packages (e.g., root-level commits)
+        if [[ ${#affected_packages[@]} -eq 0 ]]; then
+            while IFS= read -r pkg_path; do
+                affected_packages+=("${pkg_path}")
+            done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+        fi
+        
+        # Add commit to each affected package
+        for pkg_path in "${affected_packages[@]}"; do
+            PER_PACKAGE_COMMITS=$(echo "${PER_PACKAGE_COMMITS}" | jq --arg path "${pkg_path}" --argjson commit "${commit}" '.[$path] += [$commit]')
+        done
+    done
+    
+    # Output per-package commits
+    echo "per-package-commits=${PER_PACKAGE_COMMITS}" >> $GITHUB_OUTPUT
+    
+    log_success "Routed commits to packages"
+fi
+
 # Output results
 echo "commits-json=${COMMITS_JSON}" >> $GITHUB_OUTPUT
 echo "commit-count=${TOTAL_COUNT}" >> $GITHUB_OUTPUT
