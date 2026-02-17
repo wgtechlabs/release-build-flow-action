@@ -282,3 +282,223 @@ echo "version-bump-type=${BUMP_TYPE}" >> $GITHUB_OUTPUT
 log_info "Version: ${CURRENT_VERSION}"
 log_info "Tag: ${CURRENT_TAG}"
 log_info "Bump Type: ${BUMP_TYPE}"
+
+# =============================================================================
+# MONOREPO MODE
+# =============================================================================
+
+MONOREPO="${MONOREPO:-false}"
+WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
+CHANGE_DETECTION="${CHANGE_DETECTION:-both}"
+SCOPE_PACKAGE_MAPPING="${SCOPE_PACKAGE_MAPPING:-}"
+UNIFIED_VERSION="${UNIFIED_VERSION:-false}"
+CASCADE_BUMPS="${CASCADE_BUMPS:-false}"
+
+if [[ "${MONOREPO}" != "true" ]]; then
+    exit 0
+fi
+
+log_info "Processing monorepo packages..."
+
+# Helper function to detect package from commit scope
+get_package_from_scope() {
+    local scope="$1"
+    
+    if [[ -z "${scope}" ]]; then
+        echo ""
+        return
+    fi
+    
+    # Try scope package mapping first
+    if command -v jq &> /dev/null && [[ -n "${SCOPE_PACKAGE_MAPPING}" ]]; then
+        local pkg_path=$(echo "${SCOPE_PACKAGE_MAPPING}" | jq -r --arg scope "${scope}" '.[$scope] // empty')
+        if [[ -n "${pkg_path}" ]]; then
+            echo "${pkg_path}"
+            return
+        fi
+    fi
+    
+    # Try to match scope with package scope from workspace packages
+    if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+        local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg scope "${scope}" '.[] | select(.scope == $scope) | .path' | head -1)
+        if [[ -n "${pkg_path}" ]]; then
+            echo "${pkg_path}"
+            return
+        fi
+    fi
+    
+    echo ""
+}
+
+# Helper function to detect packages from file paths
+get_packages_from_files() {
+    local sha="$1"
+    local packages=()
+    
+    if [[ ! command -v jq &> /dev/null ]] || [[ "${WORKSPACE_PACKAGES}" == "[]" ]]; then
+        echo ""
+        return
+    fi
+    
+    # Get files changed in commit
+    local files=$(git diff-tree --no-commit-id --name-only -r "${sha}" 2>/dev/null || echo "")
+    
+    # Match files to packages
+    while IFS= read -r file; do
+        [[ -z "${file}" ]] && continue
+        
+        # Find which package this file belongs to
+        local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select($file | startswith(.path + "/")) | .path' | head -1)
+        if [[ -n "${pkg_path}" ]]; then
+            packages+=("${pkg_path}")
+        fi
+    done <<< "${files}"
+    
+    # Return unique packages
+    printf '%s\n' "${packages[@]}" | sort -u | tr '\n' ' '
+}
+
+# Determine affected packages and their version bumps
+declare -A PACKAGE_BUMPS
+
+if [[ "${UNIFIED_VERSION}" == "true" ]]; then
+    # All packages get the same version
+    log_info "Unified version mode: all packages will use version ${CURRENT_VERSION}"
+    
+    if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+        echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path' | while IFS= read -r pkg_path; do
+            PACKAGE_BUMPS["${pkg_path}"]="${BUMP_TYPE}"
+        done
+    fi
+else
+    # Determine per-package version bumps
+    log_info "Per-package version mode: analyzing commits..."
+    
+    while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r -d $'\0' body; do
+        local full_message="${subject}${body:+ }${body}"
+        local affected_packages=()
+        
+        # Extract scope from conventional commit
+        local pattern='^([a-z]+)(\(([^)]+)\))?(!)?: '
+        if [[ "${subject}" =~ $pattern ]]; then
+            local commit_type="${BASH_REMATCH[1]}"
+            local scope="${BASH_REMATCH[3]}"
+            local breaking="${BASH_REMATCH[4]}"
+            
+            # Determine bump type for this commit
+            local commit_bump="none"
+            
+            # Check for breaking change
+            if [[ "${breaking}" == "!" ]] || [[ "${full_message}" =~ BREAKING\ CHANGE ]] || [[ "${full_message}" =~ BREAKING-CHANGE ]]; then
+                commit_bump="major"
+            else
+                # Check commit type
+                for keyword in "${MINOR_KEYS[@]}"; do
+                    if [[ "${commit_type}" == "${keyword}" ]]; then
+                        commit_bump="minor"
+                        break
+                    fi
+                done
+                
+                if [[ "${commit_bump}" == "none" ]]; then
+                    for keyword in "${PATCH_KEYS[@]}"; do
+                        if [[ "${commit_type}" == "${keyword}" ]]; then
+                            commit_bump="patch"
+                            break
+                        fi
+                    done
+                fi
+            fi
+            
+            # Determine affected packages
+            if [[ "${CHANGE_DETECTION}" == "scope" ]] || [[ "${CHANGE_DETECTION}" == "both" ]]; then
+                if [[ -n "${scope}" ]]; then
+                    local pkg_path=$(get_package_from_scope "${scope}")
+                    if [[ -n "${pkg_path}" ]]; then
+                        affected_packages+=("${pkg_path}")
+                    fi
+                fi
+            fi
+            
+            if [[ "${CHANGE_DETECTION}" == "path" ]] || [[ "${CHANGE_DETECTION}" == "both" ]]; then
+                local file_packages=$(get_packages_from_files "${sha}")
+                if [[ -n "${file_packages}" ]]; then
+                    affected_packages+=(${file_packages})
+                fi
+            fi
+            
+            # If no scope and no file-based detection, affect all packages
+            if [[ ${#affected_packages[@]} -eq 0 ]]; then
+                if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+                    while IFS= read -r pkg_path; do
+                        affected_packages+=("${pkg_path}")
+                    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+                fi
+            fi
+            
+            # Update package bumps with highest priority
+            for pkg_path in "${affected_packages[@]}"; do
+                local current_bump="${PACKAGE_BUMPS[${pkg_path}]:-none}"
+                
+                # Determine highest priority bump
+                if [[ "${commit_bump}" == "major" ]]; then
+                    PACKAGE_BUMPS["${pkg_path}"]="major"
+                elif [[ "${commit_bump}" == "minor" ]] && [[ "${current_bump}" != "major" ]]; then
+                    PACKAGE_BUMPS["${pkg_path}"]="minor"
+                elif [[ "${commit_bump}" == "patch" ]] && [[ "${current_bump}" == "none" ]]; then
+                    PACKAGE_BUMPS["${pkg_path}"]="patch"
+                fi
+            done
+        fi
+    done < <(get_commits_since_tag "${LATEST_TAG}")
+fi
+
+# Build packages data JSON with versions and tags
+PACKAGES_DATA="["
+FIRST=true
+
+if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+    while IFS= read -r pkg_path; do
+        local pkg_info=$(echo "${WORKSPACE_PACKAGES}" | jq --arg path "${pkg_path}" '.[] | select(.path == $path)')
+        local pkg_name=$(echo "${pkg_info}" | jq -r '.name')
+        local pkg_version=$(echo "${pkg_info}" | jq -r '.version')
+        local bump_type="${PACKAGE_BUMPS[${pkg_path}]:-none}"
+        
+        local new_version="${pkg_version}"
+        if [[ "${UNIFIED_VERSION}" == "true" ]]; then
+            new_version="${CURRENT_VERSION}"
+        elif [[ "${bump_type}" != "none" ]]; then
+            new_version=$(bump_version "${pkg_version}" "${bump_type}")
+        fi
+        
+        local pkg_tag=""
+        if [[ "${bump_type}" != "none" ]]; then
+            pkg_tag="${pkg_name}@${new_version}"
+        fi
+        
+        if [[ "${FIRST}" == "true" ]]; then
+            FIRST=false
+        else
+            PACKAGES_DATA="${PACKAGES_DATA},"
+        fi
+        
+        PACKAGES_DATA="${PACKAGES_DATA}"$(jq -n \
+            --arg name "${pkg_name}" \
+            --arg path "${pkg_path}" \
+            --arg version "${pkg_version}" \
+            --arg newVersion "${new_version}" \
+            --arg bumpType "${bump_type}" \
+            --arg tag "${pkg_tag}" \
+            '{name: $name, path: $path, oldVersion: $version, version: $newVersion, bumpType: $bumpType, tag: $tag}')
+    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+fi
+
+PACKAGES_DATA="${PACKAGES_DATA}]"
+
+echo "packages-data=${PACKAGES_DATA}" >> $GITHUB_OUTPUT
+
+log_success "Monorepo version detection complete"
+if command -v jq &> /dev/null; then
+    local updated_count=$(echo "${PACKAGES_DATA}" | jq '[.[] | select(.bumpType != "none")] | length')
+    log_info "Packages to update: ${updated_count}"
+fi
