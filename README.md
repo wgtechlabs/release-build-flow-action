@@ -53,6 +53,7 @@ graph LR
 - 📝 **Keep a Changelog Format** - Maintains CHANGELOG.md with proper sections (Added, Changed, Fixed, etc.)
 - 🏷️ **Clean Commit Parsing** - Maps conventional commit types to changelog categories
 - 🚀 **GitHub Release Creation** - Automated releases with changelog content
+- 🏢 **Monorepo Support** - Per-package versioning, changelogs, and releases for multi-package repositories
 - ⚙️ **Highly Configurable** - Customize type mappings, exclusions, and version bump rules
 - 🔒 **Deterministic Logic** - No AI dependencies, purely rule-based
 - 📊 **Rich Outputs** - Version info, commit counts, categorized change counts, and release URLs
@@ -211,6 +212,131 @@ jobs:
 | `tag-only` | Only create tag without GitHub Release | `false` |
 | `fetch-depth` | Number of commits to fetch for changelog (0 for all) | `0` |
 | `include-all-commits` | Include all commits in changelog, not just since last tag | `false` |
+
+### Monorepo Configuration
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `monorepo` | Enable monorepo mode for multi-package repositories | `false` |
+| `workspace-detection` | Auto-detect workspace packages from package.json, pnpm-workspace.yaml, etc. | `true` |
+| `change-detection` | How to detect affected packages: `scope` (commit scope), `path` (file changes), or `both` | `both` |
+| `scope-package-mapping` | JSON mapping of commit scopes to package paths (auto-detected if not provided) | `''` |
+| `per-package-changelog` | Generate CHANGELOG.md in each package directory | `true` |
+| `root-changelog` | Generate aggregated CHANGELOG.md at repository root | `true` |
+| `cascade-bumps` | Automatically bump packages that depend on updated packages | `false` |
+| `unified-version` | All packages share a single unified version number | `false` |
+| `package-manager` | Package manager for workspace detection (`npm`, `bun`, `pnpm`, `yarn`) - auto-detected if not specified | `''` |
+
+---
+
+## 🏢 Monorepo Support
+
+The action now supports monorepos with **per-package versioning, changelogs, and releases**!
+
+### How It Works
+
+When `monorepo: true` is enabled:
+
+1. **Workspace Detection** - Automatically discovers packages from:
+   - `package.json` workspaces field
+   - `pnpm-workspace.yaml`
+   - `lerna.json`
+
+2. **Smart Routing** - Routes commits to packages based on:
+   - **Scope-based**: `feat(core): add feature` → affects `@pkg/core`
+   - **Path-based**: Changes to `packages/core/src/` → affects `@pkg/core`
+   - **Both**: Combines scope and path detection for maximum accuracy
+
+3. **Per-Package Versioning** - Each package gets independent version bumps:
+   - `fix(core):` only bumps `@pkg/core`
+   - Commits without scope affect all packages
+
+4. **Per-Package Changelogs** - Generates `CHANGELOG.md` in each package directory
+
+5. **Per-Package Releases** - Creates GitHub releases with scoped tags:
+   - `@pkg/core@1.2.0`
+   - `@pkg/ui@2.0.1`
+
+### Monorepo Example
+
+```yaml
+name: Monorepo Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Create Monorepo Releases
+        id: release
+        uses: wgtechlabs/release-build-flow-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          monorepo: true
+          workspace-detection: true
+          change-detection: both
+          per-package-changelog: true
+      
+      - name: Display Results
+        run: |
+          echo "Packages Updated: ${{ steps.release.outputs.packages-count }}"
+          echo "Details: ${{ steps.release.outputs.packages-updated }}"
+```
+
+### Unified Version Mode
+
+For monorepos that want all packages to share a single version:
+
+```yaml
+- name: Unified Monorepo Release
+  uses: wgtechlabs/release-build-flow-action@v2
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    monorepo: true
+    unified-version: true  # All packages bump together
+```
+
+### Custom Scope Mapping
+
+Explicitly map commit scopes to package paths:
+
+```yaml
+- name: Monorepo with Custom Mapping
+  uses: wgtechlabs/release-build-flow-action@v2
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    monorepo: true
+    scope-package-mapping: |
+      {
+        "core": "packages/core",
+        "memory": "packages/memory",
+        "cli": "src/cli",
+        "discord": "plugins/channel/discord"
+      }
+```
+
+### Monorepo Outputs
+
+| Output | Description |
+|--------|-------------|
+| `packages-updated` | JSON array of packages that were updated |
+| `packages-count` | Number of packages updated |
+
+Each package in `packages-updated` includes:
+- `name` - Package name
+- `path` - Package directory path
+- `oldVersion` - Previous version
+- `version` - New version
+- `bumpType` - Type of bump (`major`, `minor`, `patch`, `none`)
+- `tag` - Generated tag (e.g., `@pkg/core@1.2.0`)
 
 ---
 
@@ -510,6 +636,35 @@ You can use individual outputs to build custom workflows:
 permissions:
   contents: write
 ```
+
+### Monorepo: No packages detected
+
+**Cause:** Workspace configuration not found or incorrectly formatted.
+
+**Solution:** 
+- Verify `package.json` has a `workspaces` field (for npm/yarn/bun)
+- Verify `pnpm-workspace.yaml` exists (for pnpm)
+- Check that package directories contain valid `package.json` files
+- Enable debug logging to see detection details
+
+### Monorepo: Wrong package affected
+
+**Cause:** Commit scope doesn't match package scope or files are in wrong directory.
+
+**Solution:**
+- Use correct scope in commits: `feat(package-name): description`
+- Provide explicit `scope-package-mapping` if auto-detection fails
+- Set `change-detection: path` to rely only on file changes
+- Verify package directories match workspace patterns
+
+### Monorepo: All packages bumping together
+
+**Cause:** Commits without scope affect all packages by default.
+
+**Solution:**
+- Always use scoped commits: `fix(core): bug description`
+- Set `change-detection: scope` to only use scope-based routing
+- Use `unified-version: true` if you want all packages to share one version
 
 ---
 
