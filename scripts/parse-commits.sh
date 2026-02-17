@@ -144,7 +144,8 @@ parse_commit() {
     local description=""
     
     # Parse conventional commit format: type(scope)!: description
-    if [[ "${subject}" =~ ^([a-z]+)(\(([^)]+)\))?(!)?: ]]; then
+    local pattern='^([a-z]+)(\(([^)]+)\))?(!)?: '
+    if [[ "${subject}" =~ $pattern ]]; then
         type="${BASH_REMATCH[1]}"
         scope="${BASH_REMATCH[3]}"
         breaking="${BASH_REMATCH[4]}"
@@ -156,7 +157,8 @@ parse_commit() {
     fi
     
     # Check for breaking changes in body
-    if [[ "${body}" =~ BREAKING[- ]CHANGE ]]; then
+    local breaking_pattern='BREAKING[- ]CHANGE'
+    if [[ "${body}" =~ $breaking_pattern ]]; then
         breaking="!"
     fi
     

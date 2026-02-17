@@ -176,7 +176,8 @@ determine_bump_type() {
         done
         
         # Extract commit type from conventional commit format
-        if [[ "${subject}" =~ ^([a-z]+)(\([^)]+\))?(!)?:\ .+ ]]; then
+        local pattern='^([a-z]+)(\([^)]+\))?(!)?: '
+        if [[ "${subject}" =~ $pattern ]]; then
             local commit_type="${BASH_REMATCH[1]}"
             local breaking="${BASH_REMATCH[3]}"
             

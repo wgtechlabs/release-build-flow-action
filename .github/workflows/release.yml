@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for full git history
+      
+      - name: Create Release
+        id: release
+        uses: ./  # Use the local action
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version-prefix: 'v'
+          initial-version: '0.1.0'
+          changelog-path: './CHANGELOG.md'
+          release-name-template: 'Release {version}'
+      
+      - name: Display Release Info
+        if: steps.release.outputs.release-created == 'true'
+        run: |
+          echo "🚀 Release Created!"
+          echo "Version: ${{ steps.release.outputs.version }}"
+          echo "Tag: ${{ steps.release.outputs.version-tag }}"
+          echo "Release URL: ${{ steps.release.outputs.release-url }}"
+          echo ""
+          echo "📊 Statistics:"
+          echo "  Total Commits: ${{ steps.release.outputs.commit-count }}"
+          echo "  Added: ${{ steps.release.outputs.added-count }}"
+          echo "  Changed: ${{ steps.release.outputs.changed-count }}"
+          echo "  Deprecated: ${{ steps.release.outputs.deprecated-count }}"
+          echo "  Removed: ${{ steps.release.outputs.removed-count }}"
+          echo "  Fixed: ${{ steps.release.outputs.fixed-count }}"
+          echo "  Security: ${{ steps.release.outputs.security-count }}"
+      
+      - name: No Release Created
+        if: steps.release.outputs.version-bump-type == 'none'
+        run: |
+          echo "ℹ️ No version bump detected - no release created"
+          echo "This usually means no commits with version-bumping types were found since the last release."
