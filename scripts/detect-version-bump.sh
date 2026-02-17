@@ -75,10 +75,9 @@ INCLUDE_ALL_COMMITS="${INCLUDE_ALL_COMMITS:-false}"
 get_latest_tag() {
     local prefix="${VERSION_PREFIX}"
     
-    # Fetch tags if needed
-    if [[ "${FETCH_DEPTH}" == "0" ]]; then
-        git fetch --tags --quiet 2>/dev/null || true
-    fi
+    # Always fetch tags to ensure version detection sees all tags,
+    # regardless of FETCH_DEPTH / clone depth.
+    git fetch --tags --quiet 2>/dev/null || true
     
     # Get all tags matching version pattern
     local tags=$(git tag -l "${prefix}*" 2>/dev/null | grep -E "^${prefix}[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1)
@@ -153,8 +152,6 @@ get_commits_since_tag() {
 
 # Determine bump type from commits
 determine_bump_type() {
-    local commits="$1"
-    
     # Convert comma-separated keywords to arrays
     IFS=',' read -ra MAJOR_KEYS <<< "${MAJOR_KEYWORDS}"
     IFS=',' read -ra MINOR_KEYS <<< "${MINOR_KEYWORDS}"
@@ -202,7 +199,7 @@ determine_bump_type() {
                 fi
             done
         fi
-    done <<< "${commits}"
+    done
     
     # Return highest priority bump type
     if [[ "${has_major}" == "true" ]]; then
@@ -245,16 +242,16 @@ else
     PREVIOUS_TAG="${LATEST_TAG}"
     PREVIOUS_VERSION=$(extract_version "${LATEST_TAG}")
     
-    # Get commits since last tag
-    COMMITS=$(get_commits_since_tag "${LATEST_TAG}")
+    # Check if there are commits since last tag
+    COMMIT_COUNT=$(git rev-list --count "${LATEST_TAG}..HEAD" 2>/dev/null || echo "0")
     
-    if [[ -z "${COMMITS}" ]]; then
+    if [[ "${COMMIT_COUNT}" == "0" ]]; then
         log_warning "No new commits since ${LATEST_TAG}"
         CURRENT_VERSION="${PREVIOUS_VERSION}"
         BUMP_TYPE="none"
     else
-        # Determine bump type
-        BUMP_TYPE=$(determine_bump_type "${COMMITS}")
+        # Determine bump type from commits streamed as NUL-delimited data
+        BUMP_TYPE=$(get_commits_since_tag "${LATEST_TAG}" | determine_bump_type)
         
         if [[ "${BUMP_TYPE}" == "none" ]]; then
             log_warning "No version-bumping commits found"

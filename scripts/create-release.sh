@@ -94,26 +94,35 @@ create_github_release() {
     local draft="$4"
     local prerelease="$5"
     
-    # Encode body for JSON
-    local encoded_body
+    # Build JSON payload
+    local payload
     if command -v jq &> /dev/null; then
-        encoded_body=$(echo -n "${body}" | jq -Rs .)
+        # Use jq to build JSON payload safely
+        payload=$(jq -n \
+            --arg tag "$tag" \
+            --arg name "$name" \
+            --arg body "$body" \
+            --argjson draft "$draft" \
+            --argjson prerelease "$prerelease" \
+            '{tag_name: $tag, name: $name, body: $body, draft: $draft, prerelease: $prerelease}')
     else
-        # Fallback: manual escaping
-        encoded_body="\"$(escape_json_string "${body}")\""
-    fi
-    
-    # Prepare JSON payload
-    local payload=$(cat <<EOF
+        # Fallback: manual escaping for all string fields
+        local encoded_tag="\"$(escape_json_string "${tag}")\""
+        local encoded_name="\"$(escape_json_string "${name}")\""
+        local encoded_body="\"$(escape_json_string "${body}")\""
+        
+        # Prepare JSON payload
+        payload=$(cat <<EOF
 {
-  "tag_name": "${tag}",
-  "name": "${name}",
+  "tag_name": ${encoded_tag},
+  "name": ${encoded_name},
   "body": ${encoded_body},
   "draft": ${draft},
   "prerelease": ${prerelease}
 }
 EOF
 )
+    fi
     
     # Make API request
     local response=$(curl -s -X POST \
@@ -124,7 +133,16 @@ EOF
     
     # Check for errors
     if echo "${response}" | grep -q '"message"'; then
-        local error_msg=$(echo "${response}" | jq -r '.message // "Unknown error"')
+        local error_msg
+        if command -v jq &> /dev/null; then
+            error_msg=$(echo "${response}" | jq -r '.message // "Unknown error"')
+        else
+            # Fallback: try to extract "message" field without jq; otherwise use raw response
+            error_msg=$(echo "${response}" | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+            if [[ -z "${error_msg}" ]]; then
+                error_msg="${response}"
+            fi
+        fi
         log_error "Failed to create release: ${error_msg}"
         return 1
     fi
@@ -167,13 +185,18 @@ fi
 # Create release
 log_info "Creating release: ${RELEASE_NAME}"
 
-RESPONSE=$(create_github_release "${VERSION_TAG}" "${RELEASE_NAME}" "${RELEASE_BODY}" "${RELEASE_DRAFT}" "${RELEASE_PRERELEASE}")
-
-if [[ $? -eq 0 ]]; then
+if RESPONSE=$(create_github_release "${VERSION_TAG}" "${RELEASE_NAME}" "${RELEASE_BODY}" "${RELEASE_DRAFT}" "${RELEASE_PRERELEASE}"); then
     # Extract release information
-    RELEASE_ID=$(echo "${RESPONSE}" | jq -r '.id')
-    RELEASE_URL=$(echo "${RESPONSE}" | jq -r '.html_url')
-    RELEASE_UPLOAD_URL=$(echo "${RESPONSE}" | jq -r '.upload_url')
+    if command -v jq &> /dev/null; then
+        RELEASE_ID=$(echo "${RESPONSE}" | jq -r '.id')
+        RELEASE_URL=$(echo "${RESPONSE}" | jq -r '.html_url')
+        RELEASE_UPLOAD_URL=$(echo "${RESPONSE}" | jq -r '.upload_url')
+    else
+        # Fallback: extract fields without jq
+        RELEASE_ID=$(echo "${RESPONSE}" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' | head -n 1)
+        RELEASE_URL=$(echo "${RESPONSE}" | sed -n 's/.*"html_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+        RELEASE_UPLOAD_URL=$(echo "${RESPONSE}" | sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+    fi
     
     # Output results
     echo "created=true" >> $GITHUB_OUTPUT

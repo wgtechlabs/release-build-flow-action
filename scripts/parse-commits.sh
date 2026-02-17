@@ -174,7 +174,8 @@ parse_commit() {
         breaking="!"
     fi
     
-    echo "${type}|${scope}|${breaking}|${description}"
+    # Output using NUL delimiters
+    printf "%s\0%s\0%s\0%s\0" "${type}" "${scope}" "${breaking}" "${description}"
 }
 
 # =============================================================================
@@ -182,13 +183,6 @@ parse_commit() {
 # =============================================================================
 
 log_info "Parsing commits..."
-
-# Get commits to analyze
-if [[ -z "${PREVIOUS_TAG}" ]]; then
-    COMMITS=$(git log --format="%H%x00%s%x00%b%x00" --no-merges)
-else
-    COMMITS=$(git log "${PREVIOUS_TAG}..HEAD" --format="%H%x00%s%x00%b%x00" --no-merges)
-fi
 
 # Initialize counters
 ADDED_COUNT=0
@@ -202,10 +196,10 @@ TOTAL_COUNT=0
 # Initialize JSON array
 COMMITS_JSON="[]"
 
-# Process each commit
+# Process each commit - stream git log directly into loop
 while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r -d $'\0' body; do
-    # Parse commit
-    IFS='|' read -r type scope breaking description <<< "$(parse_commit "${subject}" "${body}")"
+    # Parse commit - now returns NUL-delimited output
+    IFS= read -r -d $'\0' type && IFS= read -r -d $'\0' scope && IFS= read -r -d $'\0' breaking && IFS= read -r -d $'\0' description < <(parse_commit "${subject}" "${body}")
     
     # Skip excluded types
     if is_excluded_type "${type}"; then
@@ -273,11 +267,11 @@ while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r
             }]')
     else
         # Fallback: build JSON manually with proper escaping
-        local escaped_sha=$(escape_json_string "${sha}")
-        local escaped_type=$(escape_json_string "${type}")
-        local escaped_scope=$(escape_json_string "${scope}")
-        local escaped_section=$(escape_json_string "${SECTION}")
-        local escaped_desc=$(escape_json_string "${description}")
+        escaped_sha=$(escape_json_string "${sha}")
+        escaped_type=$(escape_json_string "${type}")
+        escaped_scope=$(escape_json_string "${scope}")
+        escaped_section=$(escape_json_string "${SECTION}")
+        escaped_desc=$(escape_json_string "${description}")
         
         if [[ "${COMMITS_JSON}" == "[]" ]]; then
             COMMITS_JSON="[{\"sha\":\"${escaped_sha}\",\"type\":\"${escaped_type}\",\"scope\":\"${escaped_scope}\",\"section\":\"${escaped_section}\",\"description\":\"${escaped_desc}\"}]"
@@ -287,7 +281,11 @@ while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r
     fi
     
     log_debug "Parsed: ${sha:0:7} -> ${SECTION}: ${description}"
-done <<< "${COMMITS}"
+done < <(if [[ -z "${PREVIOUS_TAG}" ]]; then
+    git log --format="%H%x00%s%x00%b%x00" --no-merges
+else
+    git log "${PREVIOUS_TAG}..HEAD" --format="%H%x00%s%x00%b%x00" --no-merges
+fi)
 
 # Output results
 echo "commits-json=${COMMITS_JSON}" >> $GITHUB_OUTPUT

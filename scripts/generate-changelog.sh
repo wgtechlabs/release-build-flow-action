@@ -46,8 +46,8 @@ check_jq() {
     if ! command -v jq &> /dev/null; then
         log_warning "jq is not installed. Fallback parsing will be used (less reliable)."
         log_warning "For best results, install jq: https://stedolan.github.io/jq/"
-        return 1
     fi
+    # Always return 0 to avoid script termination under set -e
     return 0
 }
 
@@ -138,39 +138,50 @@ insert_entry() {
     fi
     
     # Find the line number of [Unreleased]
-    local unreleased_line=$(grep -n "## \[Unreleased\]" "${file}" | cut -d: -f1 | head -n 1)
+    local unreleased_line
+    unreleased_line=$(grep -n "## \[Unreleased\]" "${file}" | cut -d: -f1 | head -n 1)
     
     if [[ -z "${unreleased_line}" ]]; then
         log_error "Could not find [Unreleased] section in ${file}"
         exit 1
     fi
     
-    # Calculate insertion line (after [Unreleased] and any blank lines)
-    local insert_line=$((unreleased_line + 1))
+    # Determine insertion line: end of Unreleased section, i.e., right before next "## [" header
+    local total_lines
+    total_lines=$(wc -l < "${file}")
+    local insert_line=$((total_lines + 1))
     
-    # Skip blank lines after [Unreleased]
-    local total_lines=$(wc -l < "${file}")
-    while [[ ${insert_line} -le ${total_lines} ]]; do
-        local line=$(sed -n "${insert_line}p" "${file}")
-        if [[ -n "${line}" ]]; then
+    local line_num=$((unreleased_line + 1))
+    while [[ ${line_num} -le ${total_lines} ]]; do
+        local line
+        line=$(sed -n "${line_num}p" "${file}")
+        if [[ "${line}" =~ ^##\ \[.*\] ]]; then
+            insert_line=${line_num}
             break
         fi
-        insert_line=$((insert_line + 1))
+        line_num=$((line_num + 1))
     done
     
     # Create temporary file with entry inserted
-    local temp_file=$(mktemp)
+    local temp_file
+    temp_file=$(mktemp)
     
     # Copy everything before insertion point
-    head -n "$((unreleased_line))" "${file}" > "${temp_file}"
+    if [[ ${insert_line} -gt 1 ]]; then
+        head -n "$((insert_line - 1))" "${file}" > "${temp_file}"
+    else
+        : > "${temp_file}"
+    fi
     
     # Add blank line and entry
     echo "" >> "${temp_file}"
     echo -e "${entry}" >> "${temp_file}"
     echo "" >> "${temp_file}"
     
-    # Copy rest of file
-    tail -n "+${insert_line}" "${file}" >> "${temp_file}"
+    # Copy rest of file (from insertion point to end), if any
+    if [[ ${insert_line} -le ${total_lines} ]]; then
+        tail -n "+${insert_line}" "${file}" >> "${temp_file}"
+    fi
     
     # Replace original file
     mv "${temp_file}" "${file}"
