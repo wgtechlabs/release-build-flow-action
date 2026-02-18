@@ -221,3 +221,66 @@ insert_entry "${CHANGELOG_PATH}" "${CHANGELOG_ENTRY}"
 } >> $GITHUB_OUTPUT
 
 log_success "Changelog entry generated successfully"
+
+# =============================================================================
+# MONOREPO MODE - Generate per-package changelogs
+# =============================================================================
+
+MONOREPO="${MONOREPO:-false}"
+WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
+PER_PACKAGE_CHANGELOG="${PER_PACKAGE_CHANGELOG:-true}"
+ROOT_CHANGELOG="${ROOT_CHANGELOG:-true}"
+PACKAGES_DATA="${PACKAGES_DATA:-[]}"
+PER_PACKAGE_COMMITS="${PER_PACKAGE_COMMITS:-}"
+
+if [[ "${MONOREPO}" != "true" ]]; then
+    exit 0
+fi
+
+log_info "Generating monorepo changelogs..."
+
+# Generate per-package changelogs
+if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; then
+    if [[ "${PACKAGES_DATA}" != "[]" ]]; then
+        while IFS= read -r package; do
+            pkg_name=$(echo "${package}" | jq -r '.name')
+            pkg_path=$(echo "${package}" | jq -r '.path')
+            pkg_version=$(echo "${package}" | jq -r '.version')
+            bump_type=$(echo "${package}" | jq -r '.bumpType')
+            
+            # Skip if no version bump
+            if [[ "${bump_type}" == "none" ]]; then
+                log_info "Skipping ${pkg_name} (no version bump)"
+                continue
+            fi
+            
+            # Get commits for this package
+            pkg_commits="[]"
+            if [[ -n "${PER_PACKAGE_COMMITS}" ]] && [[ "${PER_PACKAGE_COMMITS}" != "{}" ]]; then
+                pkg_commits=$(echo "${PER_PACKAGE_COMMITS}" | jq --arg path "${pkg_path}" '.[$path] // []')
+            fi
+            
+            if [[ "${pkg_commits}" == "[]" ]]; then
+                log_warning "No commits for ${pkg_name}"
+                continue
+            fi
+            
+            # Generate changelog entry for package
+            pkg_changelog_entry=$(generate_entry "${pkg_version}" "${RELEASE_DATE}" "${pkg_commits}")
+            
+            # Insert into package changelog
+            pkg_changelog_path="${pkg_path}/CHANGELOG.md"
+            insert_entry "${pkg_changelog_path}" "${pkg_changelog_entry}"
+            
+            log_success "Generated changelog for ${pkg_name}"
+        done < <(echo "${PACKAGES_DATA}" | jq -c '.[]')
+    fi
+fi
+
+# Generate root aggregated changelog
+if [[ "${ROOT_CHANGELOG}" == "true" ]] && [[ "${MONOREPO}" == "true" ]]; then
+    log_info "Root changelog already updated with all commits"
+    # The root changelog was already updated in the main logic above
+fi
+
+log_success "Monorepo changelogs generated successfully"

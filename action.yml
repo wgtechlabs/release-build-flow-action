@@ -157,6 +157,52 @@ inputs:
     description: 'Include all commits in changelog, not just since last tag'
     required: false
     default: 'false'
+  
+  # Monorepo Configuration
+  monorepo:
+    description: 'Enable monorepo mode for multi-package repositories'
+    required: false
+    default: 'false'
+  
+  workspace-detection:
+    description: 'Auto-detect workspace packages from package.json, pnpm-workspace.yaml, etc.'
+    required: false
+    default: 'true'
+  
+  change-detection:
+    description: 'How to detect affected packages: scope (commit scope), path (file changes), or both'
+    required: false
+    default: 'both'
+  
+  scope-package-mapping:
+    description: 'JSON mapping of commit scopes to package paths (auto-detected if not provided)'
+    required: false
+    default: ''
+  
+  per-package-changelog:
+    description: 'Generate CHANGELOG.md in each package directory'
+    required: false
+    default: 'true'
+  
+  root-changelog:
+    description: 'Generate aggregated CHANGELOG.md at repository root'
+    required: false
+    default: 'true'
+  
+  cascade-bumps:
+    description: '(Reserved for future use) Automatically bump packages that depend on updated packages'
+    required: false
+    default: 'false'
+  
+  unified-version:
+    description: 'All packages share a single unified version number'
+    required: false
+    default: 'false'
+  
+  package-manager:
+    description: 'Package manager for workspace detection (npm, bun, pnpm, yarn) - auto-detected if not specified'
+    required: false
+    default: ''
 
 outputs:
   # Version Outputs
@@ -230,10 +276,30 @@ outputs:
   security-count:
     description: 'Number of Security fixes'
     value: ${{ steps.generate-outputs.outputs.security-count }}
+  
+  # Monorepo Outputs
+  packages-updated:
+    description: 'JSON array of packages that were updated (in monorepo mode)'
+    value: ${{ steps.generate-outputs.outputs.packages-updated }}
+  
+  packages-count:
+    description: 'Number of packages updated (in monorepo mode)'
+    value: ${{ steps.generate-outputs.outputs.packages-count }}
 
 runs:
   using: 'composite'
   steps:
+    - name: Detect Workspace Packages
+      id: detect-workspace
+      if: inputs.monorepo == 'true'
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/detect-workspace.sh
+      env:
+        WORKSPACE_DETECTION: ${{ inputs.workspace-detection }}
+        PACKAGE_MANAGER: ${{ inputs.package-manager }}
+        SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping }}
+    
     - name: Validate Inputs
       shell: bash
       run: |
@@ -243,6 +309,7 @@ runs:
         DEV_BRANCH: ${{ inputs.dev-branch }}
         VERSION_PREFIX: ${{ inputs.version-prefix }}
         INITIAL_VERSION: ${{ inputs.initial-version }}
+        MONOREPO: ${{ inputs.monorepo }}
     
     - name: Detect Version Bump
       id: detect-version
@@ -259,6 +326,12 @@ runs:
         PATCH_KEYWORDS: ${{ inputs.patch-keywords }}
         FETCH_DEPTH: ${{ inputs.fetch-depth }}
         INCLUDE_ALL_COMMITS: ${{ inputs.include-all-commits }}
+        MONOREPO: ${{ inputs.monorepo }}
+        WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        CHANGE_DETECTION: ${{ inputs.change-detection }}
+        SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
+        UNIFIED_VERSION: ${{ inputs.unified-version }}
+        CASCADE_BUMPS: ${{ inputs.cascade-bumps }}
     
     - name: Parse Commits
       id: parse-commits
@@ -271,6 +344,10 @@ runs:
         EXCLUDE_TYPES: ${{ inputs.exclude-types }}
         EXCLUDE_SCOPES: ${{ inputs.exclude-scopes }}
         PREVIOUS_TAG: ${{ steps.detect-version.outputs.previous-tag }}
+        MONOREPO: ${{ inputs.monorepo }}
+        WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        CHANGE_DETECTION: ${{ inputs.change-detection }}
+        SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
     
     - name: Generate Changelog
       id: generate-changelog
@@ -283,33 +360,39 @@ runs:
         VERSION: ${{ steps.detect-version.outputs.version }}
         VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
         COMMITS_JSON: ${{ steps.parse-commits.outputs.commits-json }}
+        MONOREPO: ${{ inputs.monorepo }}
+        WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        PER_PACKAGE_CHANGELOG: ${{ inputs.per-package-changelog }}
+        ROOT_CHANGELOG: ${{ inputs.root-changelog }}
+        PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        PER_PACKAGE_COMMITS: ${{ steps.parse-commits.outputs.per-package-commits }}
     
     - name: Commit Changelog
       if: inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
       shell: bash
       run: |
-        git config --global user.name "${{ inputs.git-user-name }}"
-        git config --global user.email "${{ inputs.git-user-email }}"
-        
-        if [[ -n "$(git status --porcelain)" ]]; then
-          git add "${{ inputs.changelog-path }}"
-          git commit -m "chore: update CHANGELOG.md for ${{ steps.detect-version.outputs.version-tag }}"
-          git push
-        fi
+        bash ${{ github.action_path }}/scripts/commit-changelog.sh
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        GIT_USER_NAME: ${{ inputs.git-user-name }}
+        GIT_USER_EMAIL: ${{ inputs.git-user-email }}
+        VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
+        CHANGELOG_PATH: ${{ inputs.changelog-path }}
+        MONOREPO: ${{ inputs.monorepo }}
+        WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
     
     - name: Create Tag
       if: steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
       shell: bash
       run: |
-        git config --global user.name "${{ inputs.git-user-name }}"
-        git config --global user.email "${{ inputs.git-user-email }}"
-        
-        git tag -a "${{ steps.detect-version.outputs.version-tag }}" -m "Release ${{ steps.detect-version.outputs.version-tag }}"
-        git push origin "${{ steps.detect-version.outputs.version-tag }}"
+        bash ${{ github.action_path }}/scripts/create-tag.sh
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        GIT_USER_NAME: ${{ inputs.git-user-name }}
+        GIT_USER_EMAIL: ${{ inputs.git-user-email }}
+        VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
+        MONOREPO: ${{ inputs.monorepo }}
+        PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
     
     - name: Create Release
       id: create-release
@@ -325,6 +408,8 @@ runs:
         RELEASE_DRAFT: ${{ inputs.release-draft }}
         RELEASE_PRERELEASE: ${{ inputs.release-prerelease }}
         CHANGELOG_ENTRY: ${{ steps.generate-changelog.outputs.changelog-entry }}
+        MONOREPO: ${{ inputs.monorepo }}
+        PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
     
     - name: Generate Outputs
       id: generate-outputs
@@ -349,3 +434,5 @@ runs:
         RELEASE_URL: ${{ steps.create-release.outputs.release-url }}
         RELEASE_UPLOAD_URL: ${{ steps.create-release.outputs.release-upload-url }}
         RELEASE_CREATED: ${{ steps.create-release.outputs.created }}
+        MONOREPO: ${{ inputs.monorepo }}
+        PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
