@@ -174,7 +174,7 @@ determine_bump_type() {
         done
         
         # Strip leading emoji and whitespace before parsing
-        local cleaned_subject=$(echo "${subject}" | sed 's/^[^a-zA-Z]*//')
+        local cleaned_subject=$(sed 's/^[^a-zA-Z]*//' <<< "${subject}")
         
         # Extract commit type from conventional commit format
         # Allow optional whitespace before scope parentheses to support Clean Commit format
@@ -391,7 +391,7 @@ else
         affected_packages=()
         
         # Strip leading emoji and whitespace before parsing
-        cleaned_subject=$(echo "${subject}" | sed 's/^[^a-zA-Z]*//')
+        cleaned_subject=$(sed 's/^[^a-zA-Z]*//' <<< "${subject}")
         
         # Extract scope from conventional commit
         # Allow optional whitespace before scope parentheses to support Clean Commit format
