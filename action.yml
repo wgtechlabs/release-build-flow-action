@@ -68,6 +68,7 @@ inputs:
         "update": "Changed",
         "change": "Changed",
         "chore": "Changed",
+        "setup": "Changed",
         "deprecate": "Deprecated",
         "remove": "Removed",
         "delete": "Removed"
@@ -98,7 +99,7 @@ inputs:
   patch-keywords:
     description: 'Comma-separated keywords that trigger patch version bump'
     required: false
-    default: 'fix,bugfix,security,perf'
+    default: 'fix,bugfix,security,perf,setup'
   
   # Release Configuration
   create-release:

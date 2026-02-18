@@ -97,7 +97,7 @@ get_changelog_section() {
         security)
             echo "Security"
             ;;
-        perf|refactor|update|change|chore)
+        perf|refactor|update|change|chore|setup)
             echo "Changed"
             ;;
         deprecate)
@@ -155,13 +155,18 @@ parse_commit() {
     local breaking=""
     local description=""
     
+    # Strip leading emoji and whitespace before parsing
+    # Emojis are non-ASCII characters, so strip everything that's not a-zA-Z from the start
+    local cleaned_subject=$(sed 's/^[^a-zA-Z]*//' <<< "${subject}")
+    
     # Parse conventional commit format: type(scope)!: description
-    local pattern='^([a-z]+)(\(([^)]+)\))?(!)?: '
-    if [[ "${subject}" =~ $pattern ]]; then
+    # Allow optional whitespace before scope parentheses to support Clean Commit format
+    local pattern='^([a-z]+)[[:space:]]*(\(([^)]+)\))?(!)?: '
+    if [[ "${cleaned_subject}" =~ $pattern ]]; then
         type="${BASH_REMATCH[1]}"
         scope="${BASH_REMATCH[3]}"
         breaking="${BASH_REMATCH[4]}"
-        description="${subject#*: }"
+        description="${cleaned_subject#*: }"
     else
         # Not a conventional commit, use as-is
         type="other"
@@ -199,7 +204,14 @@ COMMITS_JSON="[]"
 # Process each commit - stream git log directly into loop
 while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r -d $'\0' body; do
     # Parse commit - now returns NUL-delimited output
-    IFS= read -r -d $'\0' type && IFS= read -r -d $'\0' scope && IFS= read -r -d $'\0' breaking && IFS= read -r -d $'\0' description < <(parse_commit "${subject}" "${body}")
+    # Initialize variables to avoid unbound variable errors with set -u
+    type="" scope="" breaking="" description=""
+    {
+        IFS= read -r -d $'\0' type
+        IFS= read -r -d $'\0' scope
+        IFS= read -r -d $'\0' breaking
+        IFS= read -r -d $'\0' description
+    } < <(parse_commit "${subject}" "${body}"; echo -n $'\0')  # Extra NUL ensures last read exits successfully
     
     # Skip excluded types
     if is_excluded_type "${type}"; then
