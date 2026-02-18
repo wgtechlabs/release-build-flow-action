@@ -344,7 +344,7 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
             while IFS= read -r file; do
                 [[ -z "${file}" ]] && continue
                 
-                pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select($file | startswith(.path + "/")) | .path' | head -1)
+                pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select(($file == .path) or ($file | startswith(.path + "/"))) | .path' | head -1)
                 if [[ -n "${pkg_path}" ]]; then
                     # Check if not already in array
                     found=false

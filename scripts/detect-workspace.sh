@@ -126,15 +126,18 @@ expand_workspace_patterns() {
     while IFS= read -r pattern; do
         [[ -z "${pattern}" ]] && continue
         
-        # Handle glob patterns
+        # Handle glob patterns - enable nullglob to handle non-matching patterns
+        shopt -s nullglob
         for dir in ${pattern}; do
             if [[ -d "${dir}" && -f "${dir}/package.json" ]]; then
                 dirs+=("${dir}")
             fi
         done
+        shopt -u nullglob
     done <<< "${patterns}"
     
     # Return unique directories
+    [[ ${#dirs[@]} -eq 0 ]] && return
     printf '%s\n' "${dirs[@]}" | sort -u
 }
 
@@ -293,10 +296,10 @@ if [[ -z "${SCOPE_PACKAGE_MAPPING}" ]]; then
     log_debug "Auto-generated scope mapping: ${SCOPE_PACKAGE_MAPPING}"
 fi
 
-# Output results
-echo "packages=${PACKAGES_JSON}" >> "${GITHUB_OUTPUT}"
+# Output results - use compact JSON for safety
+echo "packages=$(echo "${PACKAGES_JSON}" | jq -c '.')" >> "${GITHUB_OUTPUT}"
 echo "package-count=${COUNT}" >> "${GITHUB_OUTPUT}"
 echo "package-manager=${PKG_MGR}" >> "${GITHUB_OUTPUT}"
-echo "scope-mapping=${SCOPE_PACKAGE_MAPPING}" >> "${GITHUB_OUTPUT}"
+echo "scope-mapping=$(echo "${SCOPE_PACKAGE_MAPPING}" | jq -c '.')" >> "${GITHUB_OUTPUT}"
 
 log_success "Workspace detection complete"

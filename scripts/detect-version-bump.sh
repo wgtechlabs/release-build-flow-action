@@ -348,7 +348,7 @@ get_packages_from_files() {
         [[ -z "${file}" ]] && continue
         
         # Find which package this file belongs to
-        local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select($file | startswith(.path + "/")) | .path' | head -1)
+        local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select(($file == .path) or ($file | startswith(.path + "/"))) | .path' | head -1)
         if [[ -n "${pkg_path}" ]]; then
             packages+=("${pkg_path}")
         fi
@@ -427,7 +427,11 @@ else
             if [[ "${CHANGE_DETECTION}" == "path" ]] || [[ "${CHANGE_DETECTION}" == "both" ]]; then
                 file_packages=$(get_packages_from_files "${sha}")
                 if [[ -n "${file_packages}" ]]; then
-                    affected_packages+=(${file_packages})
+                    # get_packages_from_files returns a space-separated list of package paths;
+                    # iterate explicitly to make the intentional word splitting clear.
+                    for pkg_path in ${file_packages}; do
+                        affected_packages+=("${pkg_path}")
+                    done
                 fi
             fi
             

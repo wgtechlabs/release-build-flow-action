@@ -68,11 +68,11 @@ if [[ "${MONOREPO}" == "true" ]]; then
     
     # Add per-package changelogs
     if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
-        echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path' | while IFS= read -r pkg_path; do
+        while IFS= read -r pkg_path; do
             if [[ -f "${pkg_path}/CHANGELOG.md" ]]; then
                 git add "${pkg_path}/CHANGELOG.md"
             fi
-        done
+        done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
     fi
     
     git commit -m "chore: update changelogs for ${VERSION_TAG}"
