@@ -75,13 +75,17 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
 
             # Force-update the major version tag to point to the release tag
+            # This is standard practice for GitHub Actions to allow users to reference @v1
+            # Users should always reference the major version tag, not specific releases
             echo "Updating $MAJOR_VERSION to point to $VERSION_TAG"
             git tag -f "$MAJOR_VERSION" "$VERSION_TAG"
             git push -f origin "$MAJOR_VERSION"
 
             echo "✅ Successfully updated $MAJOR_VERSION tag"
           else
-            echo "⚠️ Could not extract major version from $VERSION_TAG"
+            echo "❌ ERROR: Version tag does not match expected semver format (vX.X.X)"
+            echo "   Actual: $VERSION_TAG"
+            echo "   Cannot extract major version for tag update"
             exit 1
           fi
 
