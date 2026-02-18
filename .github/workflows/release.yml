@@ -33,13 +33,16 @@ jobs:
           VERSION_TAG="${{ steps.release.outputs.version-tag }}"
           echo "Verifying version-tag output: $VERSION_TAG"
 
-          # Check for expected semver format (vX.X.X)
-          if [[ "$VERSION_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          # Extract prefix (everything before first digit) and validate semver format
+          if [[ "$VERSION_TAG" =~ ^([^0-9]*)([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            PREFIX="${BASH_REMATCH[1]}"
+            SEMVER="${BASH_REMATCH[2]}"
             echo "✅ Version tag format is valid: $VERSION_TAG"
+            echo "   Prefix: '${PREFIX}' | Semver: ${SEMVER}"
           else
-            echo "⚠️ WARNING: Version tag does not match expected semver format (vX.X.X)"
+            echo "⚠️ WARNING: Version tag does not match expected semver format (<prefix>X.X.X)"
             echo "   Actual: $VERSION_TAG"
-            echo "   Expected pattern: vX.X.X (e.g., v1.2.3)"
+            echo "   Expected pattern: <prefix>X.X.X (e.g., v1.2.3 or release-1.2.3)"
           fi
 
       - name: Display Release Info
@@ -65,10 +68,12 @@ jobs:
           VERSION_TAG="${{ steps.release.outputs.version-tag }}"
           echo "Processing version tag: $VERSION_TAG"
 
-          # Extract major version (e.g., v1.2.3 -> v1)
-          if [[ "$VERSION_TAG" =~ ^v([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
-            MAJOR_VERSION="v${BASH_REMATCH[1]}"
-            echo "Extracted major version: $MAJOR_VERSION"
+          # Extract prefix and major version (e.g., v1.2.3 -> v + 1, release-2.3.4 -> release- + 2)
+          if [[ "$VERSION_TAG" =~ ^([^0-9]*)([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
+            PREFIX="${BASH_REMATCH[1]}"
+            MAJOR="${BASH_REMATCH[2]}"
+            MAJOR_VERSION="${PREFIX}${MAJOR}"
+            echo "Extracted major version: $MAJOR_VERSION (prefix: '${PREFIX}', major: ${MAJOR})"
 
             # Configure git
             git config user.name "github-actions[bot]"
@@ -76,14 +81,14 @@ jobs:
 
             # Force-update the major version tag to point to the release tag
             # This is standard practice for GitHub Actions to allow users to reference @v1
-            # Users should always reference the major version tag, not specific releases
+            # Users can reference either the major version tag for automatic updates or specific release tags for pinned versions
             echo "Updating $MAJOR_VERSION to point to $VERSION_TAG"
             git tag -f "$MAJOR_VERSION" "$VERSION_TAG"
             git push -f origin "$MAJOR_VERSION"
 
             echo "✅ Successfully updated $MAJOR_VERSION tag"
           else
-            echo "❌ ERROR: Version tag does not match expected semver format (vX.X.X)"
+            echo "❌ ERROR: Version tag does not match expected semver format (<prefix>X.X.X)"
             echo "   Actual: $VERSION_TAG"
             echo "   Cannot extract major version for tag update"
             exit 1
