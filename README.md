@@ -231,6 +231,8 @@ jobs:
 
 ## 🏢 Monorepo Support
 
+> **Note:** Monorepo features require `@v2` or later.
+
 The action now supports monorepos with **per-package versioning, changelogs, and releases**!
 
 ### How It Works

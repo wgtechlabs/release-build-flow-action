@@ -50,8 +50,8 @@ if [[ "${MONOREPO}" == "true" && "${PACKAGES_DATA}" != "[]" ]]; then
     log_info "Creating tags for monorepo packages..."
     
     if command -v jq &> /dev/null; then
-        # Create tags for each package
-        echo "${PACKAGES_DATA}" | jq -r '.[] | select(.tag != null) | "\(.tag)|\(.name)"' | while IFS='|' read -r tag name; do
+        # Create tags for each package (filter by bumpType to exclude packages without version bumps)
+        echo "${PACKAGES_DATA}" | jq -r '.[] | select(.bumpType != "none") | "\(.tag)|\(.name)"' | while IFS='|' read -r tag name; do
             [[ -z "${tag}" ]] && continue
             
             log_info "Creating tag: ${tag} for ${name}"

@@ -355,6 +355,10 @@ get_packages_from_files() {
     done <<< "${files}"
     
     # Return unique packages
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        echo ""
+        return
+    fi
     printf '%s\n' "${packages[@]}" | sort -u | tr '\n' ' '
 }
 
@@ -428,8 +432,9 @@ else
                 file_packages=$(get_packages_from_files "${sha}")
                 if [[ -n "${file_packages}" ]]; then
                     # get_packages_from_files returns a space-separated list of package paths;
-                    # iterate explicitly to make the intentional word splitting clear.
-                    for pkg_path in ${file_packages}; do
+                    # read into array to safely handle paths without executing shell metacharacters
+                    read -ra file_packages_array <<< "${file_packages}"
+                    for pkg_path in "${file_packages_array[@]}"; do
                         affected_packages+=("${pkg_path}")
                     done
                 fi
