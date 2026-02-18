@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Required for full git history
-      
+
       - name: Create Release
         id: release
         uses: ./  # Use the local action
@@ -26,8 +26,22 @@ jobs:
           version-prefix: 'v'
           initial-version: '0.1.0'
           changelog-path: './CHANGELOG.md'
-          release-name-template: 'Release {version}'
-      
+
+      - name: Verify Version Output
+        if: steps.release.outputs.version-tag != ''
+        run: |
+          VERSION_TAG="${{ steps.release.outputs.version-tag }}"
+          echo "Verifying version-tag output: $VERSION_TAG"
+
+          # Check for expected semver format (vX.X.X)
+          if [[ "$VERSION_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "✅ Version tag format is valid: $VERSION_TAG"
+          else
+            echo "⚠️ WARNING: Version tag does not match expected semver format (vX.X.X)"
+            echo "   Actual: $VERSION_TAG"
+            echo "   Expected pattern: vX.X.X (e.g., v1.2.3)"
+          fi
+
       - name: Display Release Info
         if: steps.release.outputs.release-created == 'true'
         run: |
@@ -44,7 +58,33 @@ jobs:
           echo "  Removed: ${{ steps.release.outputs.removed-count }}"
           echo "  Fixed: ${{ steps.release.outputs.fixed-count }}"
           echo "  Security: ${{ steps.release.outputs.security-count }}"
-      
+
+      - name: Update Major Version Tag
+        if: steps.release.outputs.release-created == 'true'
+        run: |
+          VERSION_TAG="${{ steps.release.outputs.version-tag }}"
+          echo "Processing version tag: $VERSION_TAG"
+
+          # Extract major version (e.g., v1.2.3 -> v1)
+          if [[ "$VERSION_TAG" =~ ^v([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
+            MAJOR_VERSION="v${BASH_REMATCH[1]}"
+            echo "Extracted major version: $MAJOR_VERSION"
+
+            # Configure git
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            # Force-update the major version tag to point to the release tag
+            echo "Updating $MAJOR_VERSION to point to $VERSION_TAG"
+            git tag -f "$MAJOR_VERSION" "$VERSION_TAG"
+            git push -f origin "$MAJOR_VERSION"
+
+            echo "✅ Successfully updated $MAJOR_VERSION tag"
+          else
+            echo "⚠️ Could not extract major version from $VERSION_TAG"
+            exit 1
+          fi
+
       - name: No Release Created
         if: steps.release.outputs.version-bump-type == 'none'
         run: |
