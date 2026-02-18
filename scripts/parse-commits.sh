@@ -97,7 +97,7 @@ get_changelog_section() {
         security)
             echo "Security"
             ;;
-        perf|refactor|update|change|chore)
+        perf|refactor|update|change|chore|setup)
             echo "Changed"
             ;;
         deprecate)
@@ -155,13 +155,18 @@ parse_commit() {
     local breaking=""
     local description=""
     
+    # Strip leading emoji and whitespace before parsing
+    # Emojis are non-ASCII characters, so strip everything that's not a-zA-Z from the start
+    local cleaned_subject=$(echo "${subject}" | sed 's/^[^a-zA-Z]*//')
+    
     # Parse conventional commit format: type(scope)!: description
-    local pattern='^([a-z]+)(\(([^)]+)\))?(!)?: '
-    if [[ "${subject}" =~ $pattern ]]; then
+    # Allow optional whitespace before scope parentheses to support Clean Commit format
+    local pattern='^([a-z]+)[[:space:]]*(\(([^)]+)\))?(!)?: '
+    if [[ "${cleaned_subject}" =~ $pattern ]]; then
         type="${BASH_REMATCH[1]}"
         scope="${BASH_REMATCH[3]}"
         breaking="${BASH_REMATCH[4]}"
-        description="${subject#*: }"
+        description="${cleaned_subject#*: }"
     else
         # Not a conventional commit, use as-is
         type="other"

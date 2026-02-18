@@ -173,9 +173,13 @@ determine_bump_type() {
             fi
         done
         
+        # Strip leading emoji and whitespace before parsing
+        local cleaned_subject=$(echo "${subject}" | sed 's/^[^a-zA-Z]*//')
+        
         # Extract commit type from conventional commit format
-        local pattern='^([a-z]+)(\([^)]+\))?(!)?: '
-        if [[ "${subject}" =~ $pattern ]]; then
+        # Allow optional whitespace before scope parentheses to support Clean Commit format
+        local pattern='^([a-z]+)[[:space:]]*(\([^)]+\))?(!)?: '
+        if [[ "${cleaned_subject}" =~ $pattern ]]; then
             local commit_type="${BASH_REMATCH[1]}"
             local breaking="${BASH_REMATCH[3]}"
             
@@ -386,9 +390,13 @@ else
         full_message="${subject}${body:+ }${body}"
         affected_packages=()
         
+        # Strip leading emoji and whitespace before parsing
+        cleaned_subject=$(echo "${subject}" | sed 's/^[^a-zA-Z]*//')
+        
         # Extract scope from conventional commit
-        pattern='^([a-z]+)(\(([^)]+)\))?(!)?: '
-        if [[ "${subject}" =~ $pattern ]]; then
+        # Allow optional whitespace before scope parentheses to support Clean Commit format
+        pattern='^([a-z]+)[[:space:]]*(\(([^)]+)\))?(!)?: '
+        if [[ "${cleaned_subject}" =~ $pattern ]]; then
             commit_type="${BASH_REMATCH[1]}"
             scope="${BASH_REMATCH[3]}"
             breaking="${BASH_REMATCH[4]}"

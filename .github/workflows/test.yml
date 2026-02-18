@@ -21,3 +21,9 @@ jobs:
       
       - name: Run release name tests
         run: bash tests/test_release_name.sh
+      
+      - name: Run emoji prefix tests
+        run: bash tests/test_emoji_prefix.sh
+      
+      - name: Run setup type tests
+        run: bash tests/test_setup_type.sh
