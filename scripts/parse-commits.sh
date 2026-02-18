@@ -204,7 +204,14 @@ COMMITS_JSON="[]"
 # Process each commit - stream git log directly into loop
 while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r -d $'\0' body; do
     # Parse commit - now returns NUL-delimited output
-    IFS= read -r -d $'\0' type && IFS= read -r -d $'\0' scope && IFS= read -r -d $'\0' breaking && IFS= read -r -d $'\0' description < <(parse_commit "${subject}" "${body}")
+    # Initialize variables to avoid unbound variable errors
+    type="" scope="" breaking="" description=""
+    {
+        IFS= read -r -d $'\0' type
+        IFS= read -r -d $'\0' scope
+        IFS= read -r -d $'\0' breaking
+        IFS= read -r -d $'\0' description
+    } < <(parse_commit "${subject}" "${body}"; echo -n $'\0')  # Add extra NUL to ensure last read succeeds
     
     # Skip excluded types
     if is_excluded_type "${type}"; then
