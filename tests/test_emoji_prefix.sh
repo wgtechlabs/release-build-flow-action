@@ -54,7 +54,7 @@ run_test() {
         IFS= read -r -d $'\0' scope
         IFS= read -r -d $'\0' breaking
         IFS= read -r -d $'\0' description
-    } < <(parse_commit "${subject}" "${body}"; echo -n $'\0')  # Add extra NUL to ensure last read succeeds
+    } < <(parse_commit "${subject}" "${body}"; echo -n $'\0')  # Extra NUL ensures last read exits successfully
     
     local success=true
     
