@@ -79,9 +79,11 @@ generate_release_name() {
     local version="$2"
     local date=$(date +%Y-%m-%d)
     
-    # Replace placeholders
-    local name="${template//\{version\}/${version}}"
-    name="${name//\{date\}/${date}}"
+    # Use sed for reliable placeholder replacement
+    # Avoids bash brace-matching issues with \{...\} inside ${//} across shell versions
+    local name
+    name=$(echo "${template}" | sed "s/{version}/${version}/g")
+    name=$(echo "${name}" | sed "s/{date}/${date}/g")
     
     echo "${name}"
 }
