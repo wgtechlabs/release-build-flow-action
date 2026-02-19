@@ -394,7 +394,10 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
 fi
 
 # Output results
-echo "commits-json=${COMMITS_JSON}" >> $GITHUB_OUTPUT
+# Use heredoc syntax for commits-json as it contains multiline JSON
+echo 'commits-json<<EOF' >> $GITHUB_OUTPUT
+echo "${COMMITS_JSON}" >> $GITHUB_OUTPUT
+echo "EOF" >> $GITHUB_OUTPUT
 echo "commit-count=${TOTAL_COUNT}" >> $GITHUB_OUTPUT
 echo "added-count=${ADDED_COUNT}" >> $GITHUB_OUTPUT
 echo "changed-count=${CHANGED_COUNT}" >> $GITHUB_OUTPUT
