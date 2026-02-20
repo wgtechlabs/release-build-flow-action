@@ -391,6 +391,20 @@ fi
 
 log_info "Processing monorepo packages..."
 
+# Validate WORKSPACE_PACKAGES format
+if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+    WP_FIRST_TYPE=$(echo "${WORKSPACE_PACKAGES}" | jq -r '.[0] | type' 2>/dev/null || echo "invalid")
+    if [[ "${WP_FIRST_TYPE}" != "object" ]]; then
+        log_warning "WORKSPACE_PACKAGES has '${WP_FIRST_TYPE}' elements instead of objects - skipping monorepo version detection"
+        log_debug "WORKSPACE_PACKAGES value (first 200 chars): ${WORKSPACE_PACKAGES:0:200}"
+        # Output minimal packages-data so downstream steps don't fail
+        echo "packages-data=[]" >> $GITHUB_OUTPUT
+        exit 0
+    fi
+fi
+
+log_debug "WORKSPACE_PACKAGES (first 200 chars): ${WORKSPACE_PACKAGES:0:200}"
+
 # Helper function to detect package from commit scope
 get_package_from_scope() {
     local scope="$1"
