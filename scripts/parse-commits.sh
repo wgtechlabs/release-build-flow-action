@@ -208,8 +208,10 @@ FIXED_COUNT=0
 SECURITY_COUNT=0
 TOTAL_COUNT=0
 
-# Initialize JSON array
-COMMITS_JSON="[]"
+# Use a temp file to collect commit JSON lines (JSONL format) to avoid
+# shell variable size limits when processing hundreds of commits.
+COMMITS_TMPFILE=$(mktemp)
+trap 'rm -f "${COMMITS_TMPFILE}"' EXIT
 
 # Process each commit - stream git log directly into loop
 while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r -d $'\0' body; do
@@ -273,20 +275,16 @@ while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r
             ;;
     esac
     
-    # Build JSON entry
+    # Write JSON entry to temp file (one compact JSON object per line)
     if command -v jq &> /dev/null; then
-        COMMITS_JSON=$(echo "${COMMITS_JSON}" | jq --arg sha "${sha}" \
+        jq -c -n \
+            --arg sha "${sha}" \
             --arg type "${type}" \
             --arg scope "${scope}" \
             --arg section "${SECTION}" \
             --arg desc "${description}" \
-            '. += [{
-                "sha": $sha,
-                "type": $type,
-                "scope": $scope,
-                "section": $section,
-                "description": $desc
-            }]')
+            '{sha: $sha, type: $type, scope: $scope, section: $section, description: $desc}' \
+            >> "${COMMITS_TMPFILE}"
     else
         # Fallback: build JSON manually with proper escaping
         escaped_sha=$(escape_json_string "${sha}")
@@ -295,11 +293,8 @@ while IFS= read -r -d $'\0' sha && IFS= read -r -d $'\0' subject && IFS= read -r
         escaped_section=$(escape_json_string "${SECTION}")
         escaped_desc=$(escape_json_string "${description}")
         
-        if [[ "${COMMITS_JSON}" == "[]" ]]; then
-            COMMITS_JSON="[{\"sha\":\"${escaped_sha}\",\"type\":\"${escaped_type}\",\"scope\":\"${escaped_scope}\",\"section\":\"${escaped_section}\",\"description\":\"${escaped_desc}\"}]"
-        else
-            COMMITS_JSON="${COMMITS_JSON%]},{\"sha\":\"${escaped_sha}\",\"type\":\"${escaped_type}\",\"scope\":\"${escaped_scope}\",\"section\":\"${escaped_section}\",\"description\":\"${escaped_desc}\"}]"
-        fi
+        echo "{\"sha\":\"${escaped_sha}\",\"type\":\"${escaped_type}\",\"scope\":\"${escaped_scope}\",\"section\":\"${escaped_section}\",\"description\":\"${escaped_desc}\"}" \
+            >> "${COMMITS_TMPFILE}"
     fi
     
     log_debug "Parsed: ${sha:0:7} -> ${SECTION}: ${description}"
@@ -308,6 +303,13 @@ done < <(if [[ -z "${PREVIOUS_TAG}" ]]; then
 else
     git log "${PREVIOUS_TAG}..HEAD" --format="%H%x00%s%x00%b%x00" --no-merges
 fi)
+
+# Assemble COMMITS_JSON from the temp file (one jq call instead of N)
+if [[ -s "${COMMITS_TMPFILE}" ]]; then
+    COMMITS_JSON=$(jq -c -s '.' "${COMMITS_TMPFILE}")
+else
+    COMMITS_JSON="[]"
+fi
 
 # =============================================================================
 # MONOREPO MODE - Route commits to packages
@@ -318,27 +320,57 @@ WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
 CHANGE_DETECTION="${CHANGE_DETECTION:-both}"
 SCOPE_PACKAGE_MAPPING="${SCOPE_PACKAGE_MAPPING:-}"
 
+# Validate WORKSPACE_PACKAGES format before monorepo routing
+WORKSPACE_VALID="true"
 if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+    WP_FIRST_TYPE=$(echo "${WORKSPACE_PACKAGES}" | jq -r '.[0] | type' 2>/dev/null || echo "invalid")
+    if [[ "${WP_FIRST_TYPE}" != "object" ]]; then
+        log_warning "WORKSPACE_PACKAGES has '${WP_FIRST_TYPE}' elements instead of objects - skipping monorepo routing"
+        log_debug "WORKSPACE_PACKAGES value (first 200 chars): ${WORKSPACE_PACKAGES:0:200}"
+        WORKSPACE_VALID="false"
+    fi
+fi
+
+if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]] && [[ "${WORKSPACE_VALID}" == "true" ]]; then
     log_info "Routing commits to monorepo packages..."
     
-    # Create per-package commits JSON
-    PER_PACKAGE_COMMITS="{}"
+    # Pre-compute package paths and scope mapping to avoid repeated jq calls
+    # on WORKSPACE_PACKAGES inside the commit loop
+    WORKSPACE_TMPFILE=$(mktemp)
+    echo "${WORKSPACE_PACKAGES}" > "${WORKSPACE_TMPFILE}"
     
-    # Initialize each package with empty commits array
-    while IFS= read -r pkg_path; do
-        PER_PACKAGE_COMMITS=$(echo "${PER_PACKAGE_COMMITS}" | jq --arg path "${pkg_path}" '.[$path] = []')
-    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+    # Read all package paths into an array (one jq call)
+    ALL_PKG_PATHS=()
+    while IFS= read -r p; do
+        ALL_PKG_PATHS+=("${p}")
+    done < <(jq -r '.[].path' "${WORKSPACE_TMPFILE}")
+    
+    # Build scope-to-path lookup as a JSON object (one jq call)
+    SCOPE_LOOKUP=$(jq -c 'map({(.scope): .path}) | add // {}' "${WORKSPACE_TMPFILE}")
+    
+    # Use a JSONL temp file to collect {package_path, commit} assignments.
+    # This avoids growing a huge PER_PACKAGE_COMMITS variable in the loop.
+    ROUTING_TMPFILE=$(mktemp)
+    trap 'rm -f "${COMMITS_TMPFILE}" "${WORKSPACE_TMPFILE}" "${ROUTING_TMPFILE}"' EXIT
+    
+    COMMIT_INDEX=0
+    COMMIT_TOTAL=$(echo "${COMMITS_JSON}" | jq 'length')
     
     # Route each commit to appropriate packages
     while IFS= read -r commit; do
+        COMMIT_INDEX=$((COMMIT_INDEX + 1))
+        if (( COMMIT_INDEX % 50 == 0 )); then
+            log_debug "Routing commit ${COMMIT_INDEX}/${COMMIT_TOTAL}..."
+        fi
+        
         sha=$(echo "${commit}" | jq -r '.sha')
         scope=$(echo "${commit}" | jq -r '.scope')
         affected_packages=()
         
-        # Scope-based routing
+        # Scope-based routing (using pre-computed lookups instead of per-commit jq)
         if [[ "${CHANGE_DETECTION}" == "scope" ]] || [[ "${CHANGE_DETECTION}" == "both" ]]; then
             if [[ -n "${scope}" && "${scope}" != "null" ]]; then
-                # Try scope package mapping
+                # Try explicit scope-package mapping first
                 if [[ -n "${SCOPE_PACKAGE_MAPPING}" ]]; then
                     pkg_path=$(echo "${SCOPE_PACKAGE_MAPPING}" | jq -r --arg scope "${scope}" '.[$scope] // empty')
                     if [[ -n "${pkg_path}" ]]; then
@@ -346,15 +378,12 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
                     fi
                 fi
                 
-                # Try matching with package scope
+                # Try matching scope from workspace package scopes (pre-computed)
                 if [[ ${#affected_packages[@]} -eq 0 ]]; then
-                    while IFS= read -r pkg_path; do
-                        pkg_scope=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg path "${pkg_path}" '.[] | select(.path == $path) | .scope')
-                        if [[ "${pkg_scope}" == "${scope}" ]]; then
-                            affected_packages+=("${pkg_path}")
-                            break
-                        fi
-                    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+                    pkg_path=$(echo "${SCOPE_LOOKUP}" | jq -r --arg scope "${scope}" '.[$scope] // empty')
+                    if [[ -n "${pkg_path}" ]]; then
+                        affected_packages+=("${pkg_path}")
+                    fi
                 fi
             fi
         fi
@@ -366,18 +395,20 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
             while IFS= read -r file; do
                 [[ -z "${file}" ]] && continue
                 
-                pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select(($file == .path) or ($file | startswith(.path + "/"))) | .path' | head -1)
+                pkg_path=$(jq -r --arg file "${file}" '.[] | select(($file == .path) or ($file | startswith(.path + "/"))) | .path' "${WORKSPACE_TMPFILE}" | head -1)
                 if [[ -n "${pkg_path}" ]]; then
                     # Check if not already in array
-                    found=false
-                    for existing in "${affected_packages[@]}"; do
-                        if [[ "${existing}" == "${pkg_path}" ]]; then
-                            found=true
-                            break
-                        fi
-                    done
+                    local_found=false
+                    if [[ ${#affected_packages[@]} -gt 0 ]]; then
+                        for existing in "${affected_packages[@]}"; do
+                            if [[ "${existing}" == "${pkg_path}" ]]; then
+                                local_found=true
+                                break
+                            fi
+                        done
+                    fi
                     
-                    if [[ "${found}" == "false" ]]; then
+                    if [[ "${local_found}" == "false" ]]; then
                         affected_packages+=("${pkg_path}")
                     fi
                 fi
@@ -386,21 +417,35 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
         
         # If no packages matched, add to all packages (e.g., root-level commits)
         if [[ ${#affected_packages[@]} -eq 0 ]]; then
-            while IFS= read -r pkg_path; do
-                affected_packages+=("${pkg_path}")
-            done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+            affected_packages=("${ALL_PKG_PATHS[@]}")
         fi
         
-        # Add commit to each affected package
+        # Write {package_path, commit} assignments to temp file (one line per assignment)
         for pkg_path in "${affected_packages[@]}"; do
-            PER_PACKAGE_COMMITS=$(echo "${PER_PACKAGE_COMMITS}" | jq --arg path "${pkg_path}" --argjson commit "${commit}" '.[$path] += [$commit]')
+            jq -c -n --arg path "${pkg_path}" --argjson commit "${commit}" \
+                '{path: $path, commit: $commit}' >> "${ROUTING_TMPFILE}"
         done
     done < <(echo "${COMMITS_JSON}" | jq -c '.[]')
     
-    # Output per-package commits as compact JSON to avoid newlines in $GITHUB_OUTPUT
-    echo "per-package-commits=$(echo "${PER_PACKAGE_COMMITS}" | jq -c '.')" >> $GITHUB_OUTPUT
+    # Build PER_PACKAGE_COMMITS in a single jq pass from the routing file
+    if [[ -s "${ROUTING_TMPFILE}" ]]; then
+        # Initialize with empty arrays for all packages, then merge in routed commits
+        PER_PACKAGE_COMMITS=$(jq -c -n \
+            --argjson pkgs "$(jq -c '[.[].path]' "${WORKSPACE_TMPFILE}")" \
+            --argjson routes "$(jq -c -s '.' "${ROUTING_TMPFILE}")" \
+            '($pkgs | map({(.): []}) | add) * ($routes | group_by(.path) | map({(.[0].path): [.[].commit]}) | add // {})')
+    else
+        # No commits routed — initialize all packages with empty arrays
+        PER_PACKAGE_COMMITS=$(jq -c '[.[].path] | map({(.): []}) | add // {}' "${WORKSPACE_TMPFILE}")
+    fi
     
-    log_success "Routed commits to packages"
+    # Output per-package commits as compact JSON to avoid newlines in $GITHUB_OUTPUT
+    echo "per-package-commits=${PER_PACKAGE_COMMITS}" >> $GITHUB_OUTPUT
+    
+    # Clean up workspace temp file
+    rm -f "${WORKSPACE_TMPFILE}" "${ROUTING_TMPFILE}"
+    
+    log_success "Routed ${COMMIT_INDEX} commits to ${#ALL_PKG_PATHS[@]} packages"
 fi
 
 # Output results
