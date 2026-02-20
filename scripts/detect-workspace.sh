@@ -170,8 +170,8 @@ get_package_info() {
             scope=$(basename "${pkg_dir}")
         fi
         
-        # Build JSON object
-        jq -n \
+        # Build JSON object (compact output to avoid multi-line concatenation issues)
+        jq -c -n \
             --arg name "${name}" \
             --arg version "${version}" \
             --arg path "${pkg_dir}" \
@@ -259,9 +259,8 @@ if [[ -z "${PACKAGE_DIRS}" ]]; then
     exit 0
 fi
 
-# Collect package information
-PACKAGES_JSON="["
-FIRST=true
+# Collect package information using jq to build the array properly
+PACKAGES_JSON="[]"
 COUNT=0
 
 while IFS= read -r pkg_dir; do
@@ -269,17 +268,10 @@ while IFS= read -r pkg_dir; do
     
     PKG_INFO=$(get_package_info "${pkg_dir}")
     if [[ -n "${PKG_INFO}" ]]; then
-        if [[ "${FIRST}" == "true" ]]; then
-            FIRST=false
-        else
-            PACKAGES_JSON="${PACKAGES_JSON},"
-        fi
-        PACKAGES_JSON="${PACKAGES_JSON}${PKG_INFO}"
+        PACKAGES_JSON=$(echo "${PACKAGES_JSON}" | jq -c --argjson pkg "${PKG_INFO}" '. += [$pkg]')
         COUNT=$((COUNT + 1))
     fi
 done <<< "${PACKAGE_DIRS}"
-
-PACKAGES_JSON="${PACKAGES_JSON}]"
 
 log_success "Detected ${COUNT} workspace packages"
 
@@ -296,7 +288,18 @@ if [[ -z "${SCOPE_PACKAGE_MAPPING}" ]]; then
     log_debug "Auto-generated scope mapping: ${SCOPE_PACKAGE_MAPPING}"
 fi
 
+# Validate PACKAGES_JSON contains objects, not just strings
+if command -v jq &> /dev/null && [[ "${PACKAGES_JSON}" != "[]" ]]; then
+    FIRST_TYPE=$(echo "${PACKAGES_JSON}" | jq -r '.[0] | type')
+    if [[ "${FIRST_TYPE}" != "object" ]]; then
+        log_error "PACKAGES_JSON elements are '${FIRST_TYPE}' instead of 'object' - this is a bug"
+        log_debug "PACKAGES_JSON value: ${PACKAGES_JSON:0:500}"
+        exit 1
+    fi
+fi
+
 # Output results - use compact JSON for safety
+log_debug "Packages JSON (first 200 chars): ${PACKAGES_JSON:0:200}"
 echo "packages=$(echo "${PACKAGES_JSON}" | jq -c '.')" >> "${GITHUB_OUTPUT}"
 echo "package-count=${COUNT}" >> "${GITHUB_OUTPUT}"
 echo "package-manager=${PKG_MGR}" >> "${GITHUB_OUTPUT}"
