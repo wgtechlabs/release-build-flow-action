@@ -33,3 +33,9 @@ jobs:
       
       - name: Run per-package bump tests
         run: bash tests/test_per_package_bump.sh
+      
+      - name: Run workspace packages validation tests
+        run: bash tests/test_workspace_packages_validation.sh
+      
+      - name: Run detect manifest version tests
+        run: bash tests/test_detect_manifest_version.sh
