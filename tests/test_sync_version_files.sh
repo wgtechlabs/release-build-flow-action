@@ -24,6 +24,8 @@ update_cargo_toml_def="$(get_func "update_cargo_toml")"
 update_pyproject_toml_def="$(get_func "update_pyproject_toml")"
 update_pubspec_yaml_def="$(get_func "update_pubspec_yaml")"
 detect_version_files_def="$(get_func "detect_version_files")"
+update_version_file_def="$(get_func "update_version_file")"
+sync_monorepo_packages_def="$(get_func "sync_monorepo_packages")"
 
 if [ -z "${update_package_json_def}" ]; then
     echo "Error: could not extract update_package_json from ${SYNC_SCRIPT}" >&2; exit 1
@@ -40,6 +42,12 @@ fi
 if [ -z "${detect_version_files_def}" ]; then
     echo "Error: could not extract detect_version_files from ${SYNC_SCRIPT}" >&2; exit 1
 fi
+if [ -z "${update_version_file_def}" ]; then
+    echo "Error: could not extract update_version_file from ${SYNC_SCRIPT}" >&2; exit 1
+fi
+if [ -z "${sync_monorepo_packages_def}" ]; then
+    echo "Error: could not extract sync_monorepo_packages from ${SYNC_SCRIPT}" >&2; exit 1
+fi
 
 # Stubs for log helpers used inside the extracted functions
 log_info()    { :; }
@@ -52,6 +60,8 @@ eval "${update_cargo_toml_def}"
 eval "${update_pyproject_toml_def}"
 eval "${update_pubspec_yaml_def}"
 eval "${detect_version_files_def}"
+eval "${update_version_file_def}"
+eval "${sync_monorepo_packages_def}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -254,13 +264,13 @@ run_test "update_pubspec_yaml: basic version bump" "${result}" "1.1.0"
 DETECT_DIR="${TMPDIR_TEST}/detect_test"
 mkdir -p "${DETECT_DIR}"
 touch "${DETECT_DIR}/package.json"
-result="$(cd "${DETECT_DIR}" && detect_version_files)"
-run_test "detect_version_files: finds package.json" "${result}" "package.json"
+result="$(detect_version_files "${DETECT_DIR}")"
+run_test "detect_version_files: finds package.json" "${result}" "${DETECT_DIR}/package.json"
 
 # auto-detection returns empty when no manifest files present
 EMPTY_DIR="${TMPDIR_TEST}/empty_test"
 mkdir -p "${EMPTY_DIR}"
-result="$(cd "${EMPTY_DIR}" && detect_version_files)"
+result="$(detect_version_files "${EMPTY_DIR}")"
 run_test "detect_version_files: empty result when no manifests" "${result}" ""
 
 # auto-detection finds multiple files
@@ -268,8 +278,15 @@ MULTI_DIR="${TMPDIR_TEST}/multi_test"
 mkdir -p "${MULTI_DIR}"
 touch "${MULTI_DIR}/package.json"
 touch "${MULTI_DIR}/Cargo.toml"
-result="$(cd "${MULTI_DIR}" && detect_version_files)"
-run_test "detect_version_files: finds multiple manifests" "${result}" "package.json,Cargo.toml"
+result="$(detect_version_files "${MULTI_DIR}")"
+run_test "detect_version_files: finds multiple manifests" "${result}" "${MULTI_DIR}/package.json,${MULTI_DIR}/Cargo.toml"
+
+# auto-detection defaults to current directory
+DETECT_CWD="${TMPDIR_TEST}/detect_cwd"
+mkdir -p "${DETECT_CWD}"
+touch "${DETECT_CWD}/package.json"
+result="$(cd "${DETECT_CWD}" && detect_version_files)"
+run_test "detect_version_files: defaults to cwd" "${result}" "./package.json"
 
 # =============================================================================
 # Integration: run full sync-version-files.sh with env vars
@@ -316,6 +333,93 @@ EOF
 )
 result="$(jq -r '.version' "${INT_DIR3}/package.json")"
 run_test "Integration: auto-detects and updates package.json" "${result}" "0.5.0"
+
+# =============================================================================
+# Monorepo integration tests
+# =============================================================================
+
+echo ""
+echo "=== Monorepo Version Sync Tests ==="
+echo ""
+
+# Monorepo: sync per-package versions (per-package mode)
+MONO_DIR="${TMPDIR_TEST}/monorepo_per_pkg"
+mkdir -p "${MONO_DIR}/packages/core" "${MONO_DIR}/packages/cli"
+cat > "${MONO_DIR}/package.json" <<'EOF'
+{"name":"monorepo","version":"1.0.0","private":true}
+EOF
+cat > "${MONO_DIR}/packages/core/package.json" <<'EOF'
+{"name":"@myorg/core","version":"1.0.0"}
+EOF
+cat > "${MONO_DIR}/packages/cli/package.json" <<'EOF'
+{"name":"@myorg/cli","version":"0.5.0"}
+EOF
+PACKAGES_DATA='[{"name":"@myorg/core","path":"packages/core","oldVersion":"1.0.0","version":"1.1.0","bumpType":"minor","tag":"@myorg/core@1.1.0"},{"name":"@myorg/cli","path":"packages/cli","oldVersion":"0.5.0","version":"0.5.1","bumpType":"patch","tag":"@myorg/cli@0.5.1"}]'
+(
+    cd "${MONO_DIR}"
+    SYNC_VERSION_FILES="true" VERSION="1.1.0" MONOREPO="true" \
+        PACKAGES_DATA="${PACKAGES_DATA}" UNIFIED_VERSION="false" \
+        VERSION_FILE_PATHS="" \
+        bash "${SYNC_SCRIPT}" > /dev/null 2>&1
+)
+result_core="$(jq -r '.version' "${MONO_DIR}/packages/core/package.json")"
+result_cli="$(jq -r '.version' "${MONO_DIR}/packages/cli/package.json")"
+result_root="$(jq -r '.version' "${MONO_DIR}/package.json")"
+run_test "Monorepo per-pkg: core updated to 1.1.0" "${result_core}" "1.1.0"
+run_test "Monorepo per-pkg: cli updated to 0.5.1" "${result_cli}" "0.5.1"
+run_test "Monorepo per-pkg: root updated to 1.1.0" "${result_root}" "1.1.0"
+
+# Monorepo: unified version mode
+MONO_DIR2="${TMPDIR_TEST}/monorepo_unified"
+mkdir -p "${MONO_DIR2}/packages/core" "${MONO_DIR2}/packages/cli"
+cat > "${MONO_DIR2}/package.json" <<'EOF'
+{"name":"monorepo","version":"1.0.0","private":true}
+EOF
+cat > "${MONO_DIR2}/packages/core/package.json" <<'EOF'
+{"name":"@myorg/core","version":"1.0.0"}
+EOF
+cat > "${MONO_DIR2}/packages/cli/package.json" <<'EOF'
+{"name":"@myorg/cli","version":"1.0.0"}
+EOF
+PACKAGES_DATA2='[{"name":"@myorg/core","path":"packages/core","oldVersion":"1.0.0","version":"2.0.0","bumpType":"major","tag":"@myorg/core@2.0.0"},{"name":"@myorg/cli","path":"packages/cli","oldVersion":"1.0.0","version":"2.0.0","bumpType":"major","tag":"@myorg/cli@2.0.0"}]'
+(
+    cd "${MONO_DIR2}"
+    SYNC_VERSION_FILES="true" VERSION="2.0.0" MONOREPO="true" \
+        PACKAGES_DATA="${PACKAGES_DATA2}" UNIFIED_VERSION="true" \
+        VERSION_FILE_PATHS="" \
+        bash "${SYNC_SCRIPT}" > /dev/null 2>&1
+)
+result_core2="$(jq -r '.version' "${MONO_DIR2}/packages/core/package.json")"
+result_cli2="$(jq -r '.version' "${MONO_DIR2}/packages/cli/package.json")"
+result_root2="$(jq -r '.version' "${MONO_DIR2}/package.json")"
+run_test "Monorepo unified: core updated to 2.0.0" "${result_core2}" "2.0.0"
+run_test "Monorepo unified: cli updated to 2.0.0" "${result_cli2}" "2.0.0"
+run_test "Monorepo unified: root updated to 2.0.0" "${result_root2}" "2.0.0"
+
+# Monorepo: skips packages with bumpType=none (per-package mode)
+MONO_DIR3="${TMPDIR_TEST}/monorepo_skip_none"
+mkdir -p "${MONO_DIR3}/packages/core" "${MONO_DIR3}/packages/cli"
+cat > "${MONO_DIR3}/package.json" <<'EOF'
+{"name":"monorepo","version":"1.0.0","private":true}
+EOF
+cat > "${MONO_DIR3}/packages/core/package.json" <<'EOF'
+{"name":"@myorg/core","version":"1.0.0"}
+EOF
+cat > "${MONO_DIR3}/packages/cli/package.json" <<'EOF'
+{"name":"@myorg/cli","version":"0.5.0"}
+EOF
+PACKAGES_DATA3='[{"name":"@myorg/core","path":"packages/core","oldVersion":"1.0.0","version":"1.1.0","bumpType":"minor","tag":"@myorg/core@1.1.0"},{"name":"@myorg/cli","path":"packages/cli","oldVersion":"0.5.0","version":"0.5.0","bumpType":"none","tag":""}]'
+(
+    cd "${MONO_DIR3}"
+    SYNC_VERSION_FILES="true" VERSION="1.1.0" MONOREPO="true" \
+        PACKAGES_DATA="${PACKAGES_DATA3}" UNIFIED_VERSION="false" \
+        VERSION_FILE_PATHS="" \
+        bash "${SYNC_SCRIPT}" > /dev/null 2>&1
+)
+result_core3="$(jq -r '.version' "${MONO_DIR3}/packages/core/package.json")"
+result_cli3="$(jq -r '.version' "${MONO_DIR3}/packages/cli/package.json")"
+run_test "Monorepo skip-none: core updated to 1.1.0" "${result_core3}" "1.1.0"
+run_test "Monorepo skip-none: cli remains at 0.5.0" "${result_cli3}" "0.5.0"
 
 echo ""
 echo "=== Test Summary ==="
