@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.1.4] - 2026-02-20
+
+### Changed
+
+- refine default release name template handling
+
 ## [1.1.3] - 2026-02-20
 
 ### Changed
