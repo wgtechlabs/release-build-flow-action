@@ -60,7 +60,7 @@ escape_json_string() {
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 VERSION="${VERSION:-}"
 VERSION_TAG="${VERSION_TAG:-}"
-RELEASE_NAME_TEMPLATE="${RELEASE_NAME_TEMPLATE:-Release {version}}"
+RELEASE_NAME_TEMPLATE="${RELEASE_NAME_TEMPLATE:-{tag}}"
 RELEASE_DRAFT="${RELEASE_DRAFT:-false}"
 RELEASE_PRERELEASE="${RELEASE_PRERELEASE:-false}"
 CHANGELOG_ENTRY="${CHANGELOG_ENTRY:-}"
@@ -77,12 +77,14 @@ GITHUB_API_URL="${GITHUB_API_URL:-https://api.github.com}"
 generate_release_name() {
     local template="$1"
     local version="$2"
+    local tag="${3:-}"
     local date=$(date +%Y-%m-%d)
     
     # Use sed for reliable placeholder replacement
     # Avoids bash brace-matching issues with \{...\} inside ${//} across shell versions
     local name
     name=$(echo "${template}" | sed "s/{version}/${version}/g")
+    name=$(echo "${name}" | sed "s/{tag}/${tag}/g")
     name=$(echo "${name}" | sed "s/{date}/${date}/g")
     
     echo "${name}"
@@ -189,7 +191,7 @@ else
     fi
     
     # Generate release name
-    RELEASE_NAME=$(generate_release_name "${RELEASE_NAME_TEMPLATE}" "${VERSION}")
+    RELEASE_NAME=$(generate_release_name "${RELEASE_NAME_TEMPLATE}" "${VERSION}" "${VERSION_TAG}")
     
     # Prepare release body
     RELEASE_BODY="${CHANGELOG_ENTRY}"
@@ -269,7 +271,7 @@ if command -v jq &> /dev/null && [[ "${PACKAGES_DATA}" != "[]" ]]; then
         fi
         
         # Generate release name for package
-        pkg_release_name=$(generate_release_name "${RELEASE_NAME_TEMPLATE}" "${pkg_tag}")
+        pkg_release_name=$(generate_release_name "${RELEASE_NAME_TEMPLATE}" "${pkg_tag}" "${pkg_tag}")
         
         # Create release for package
         log_info "Creating release for ${pkg_name}: ${pkg_tag}"
