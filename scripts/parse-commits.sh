@@ -65,7 +65,15 @@ escape_json_string() {
 # =============================================================================
 
 COMMIT_TYPE_MAPPING="${COMMIT_TYPE_MAPPING:-}"
-EXCLUDE_TYPES="${EXCLUDE_TYPES:-docs,style,test,ci,build}"
+COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
+
+# Convention-aware defaults for exclude types
+if [[ "${COMMIT_CONVENTION}" == "conventional" ]]; then
+    EXCLUDE_TYPES="${EXCLUDE_TYPES:-docs,style,test,ci,build,chore}"
+else
+    EXCLUDE_TYPES="${EXCLUDE_TYPES:-docs,style,test,ci,build,release}"
+fi
+
 EXCLUDE_SCOPES="${EXCLUDE_SCOPES:-}"
 PREVIOUS_TAG="${PREVIOUS_TAG:-}"
 
@@ -91,7 +99,7 @@ get_changelog_section() {
         feat|new|add)
             echo "Added"
             ;;
-        fix|bugfix)
+        fix|bugfix|revert)
             echo "Fixed"
             ;;
         security)
