@@ -82,6 +82,71 @@ INCLUDE_ALL_COMMITS="${INCLUDE_ALL_COMMITS:-false}"
 # HELPER FUNCTIONS
 # =============================================================================
 
+# Detect version from manifest files (package.json, Cargo.toml, pyproject.toml, pubspec.yaml)
+# Returns the version string if found, or empty string
+detect_manifest_version() {
+    local version=""
+
+    # package.json
+    if [[ -z "${version}" ]] && [[ -f "package.json" ]]; then
+        if command -v jq &> /dev/null; then
+            version=$(jq -r '.version // empty' package.json 2>/dev/null || true)
+        else
+            version=$(grep -m1 '"version"' package.json 2>/dev/null | grep -oP '"version"\s*:\s*"\K[^"]+' || true)
+        fi
+        if [[ -n "${version}" ]]; then
+            log_debug "Detected version ${version} from package.json"
+        fi
+    fi
+
+    # Cargo.toml ([package] section)
+    if [[ -z "${version}" ]] && [[ -f "Cargo.toml" ]]; then
+        version=$(awk '
+            /^\[package\]/ { in_pkg=1; next }
+            /^\[/ { in_pkg=0 }
+            in_pkg && /^version[[:space:]]*=/ {
+                match($0, /"[^"]*"/)
+                print substr($0, RSTART+1, RLENGTH-2)
+                exit
+            }
+        ' Cargo.toml 2>/dev/null || true)
+        if [[ -n "${version}" ]]; then
+            log_debug "Detected version ${version} from Cargo.toml"
+        fi
+    fi
+
+    # pyproject.toml ([project] or [tool.poetry] section)
+    if [[ -z "${version}" ]] && [[ -f "pyproject.toml" ]]; then
+        version=$(awk '
+            /^\[project\]/ || /^\[tool\.poetry\]/ { in_section=1; next }
+            /^\[/ { in_section=0 }
+            in_section && /^version[[:space:]]*=/ {
+                match($0, /"[^"]*"/)
+                print substr($0, RSTART+1, RLENGTH-2)
+                exit
+            }
+        ' pyproject.toml 2>/dev/null || true)
+        if [[ -n "${version}" ]]; then
+            log_debug "Detected version ${version} from pyproject.toml"
+        fi
+    fi
+
+    # pubspec.yaml
+    if [[ -z "${version}" ]] && [[ -f "pubspec.yaml" ]]; then
+        version=$(grep -m1 '^version:' pubspec.yaml 2>/dev/null | sed 's/^version:[[:space:]]*//' | sed 's/+.*//' | tr -d "\"'" || true)
+        if [[ -n "${version}" ]]; then
+            log_debug "Detected version ${version} from pubspec.yaml"
+        fi
+    fi
+
+    # Validate that the detected version looks like SemVer
+    if [[ -n "${version}" ]] && [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "${version}"
+    else
+        echo ""
+    fi
+}
+
 # Get latest version tag
 get_latest_tag() {
     local prefix="${VERSION_PREFIX}"
@@ -244,7 +309,16 @@ if [[ -z "${LATEST_TAG}" ]]; then
     log_warning "No previous version tag found"
     PREVIOUS_VERSION=""
     PREVIOUS_TAG=""
-    CURRENT_VERSION="${INITIAL_VERSION}"
+    
+    # Fallback chain: manifest file version → initial-version input
+    MANIFEST_VERSION=$(detect_manifest_version)
+    if [[ -n "${MANIFEST_VERSION}" ]]; then
+        CURRENT_VERSION="${MANIFEST_VERSION}"
+        log_info "Using version from manifest file: ${CURRENT_VERSION}"
+    else
+        CURRENT_VERSION="${INITIAL_VERSION}"
+        log_info "Using initial version: ${INITIAL_VERSION}"
+    fi
     
     # Check if we have any commits to release
     COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
@@ -252,7 +326,6 @@ if [[ -z "${LATEST_TAG}" ]]; then
         log_warning "No commits to release"
         BUMP_TYPE="none"
     else
-        log_info "Using initial version: ${INITIAL_VERSION}"
         BUMP_TYPE="patch"
     fi
 else
