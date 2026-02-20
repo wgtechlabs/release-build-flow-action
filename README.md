@@ -114,7 +114,7 @@ jobs:
     version-prefix: 'v'
     initial-version: '1.0.0'
     changelog-path: './CHANGELOG.md'
-    release-name-template: 'Release {version} - {date}'
+    release-name-template: '{tag} - {date}'
     exclude-types: 'docs,style,test,ci'
 ```
 
@@ -195,7 +195,7 @@ jobs:
 | `create-release` | Enable GitHub Release creation | `true` |
 | `release-draft` | Create release as draft | `false` |
 | `release-prerelease` | Mark release as prerelease | `false` |
-| `release-name-template` | Template for release name (supports `{version}`, `{date}`) | `Release {version}` |
+| `release-name-template` | Template for release name (supports `{tag}`, `{version}`, `{date}`) | `{tag}` |
 
 ### Git Configuration
 
