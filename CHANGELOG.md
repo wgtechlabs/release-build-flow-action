@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.1.1] - 2026-02-20
+
+### Changed
+
+- refine exclude types based on commit convention
+- refine version bump keywords for conventional commits
+- enhance commit type mapping and exclusion configurations
+- enhance release name generation for reliable placeholder replacement
+
 ## [1.1.0] - 2026-02-20
 
 ### Added
