@@ -12,6 +12,27 @@ Stop manually managing versions, changelogs, and GitHub Releases. This action au
 
 ---
 
+## 📑 Table of Contents
+
+- [Why Use This Action?](#-why-use-this-action)
+- [How It Works](#-how-it-works)
+- [Features](#-features)
+- [Commit Type Mapping](#-commit-type-mapping)
+- [Quick Start](#-quick-start)
+- [Inputs](#-inputs)
+- [Monorepo Support](#-monorepo-support)
+- [Outputs](#-outputs)
+- [Examples](#-examples)
+- [Conventional Commit Examples](#-conventional-commit-examples)
+- [Generated CHANGELOG.md Example](#-generated-changelogmd-example)
+- [Development](#-development)
+- [Troubleshooting](#-troubleshooting)
+- [License](#-license)
+- [Contributing](#-contributing)
+- [Acknowledgments](#-acknowledgments)
+
+---
+
 ## 🎯 Why Use This Action?
 
 **The Problem:**  
@@ -70,9 +91,9 @@ This action uses conventional commits (Clean Commit convention) and maps them to
 | Commit Type | Changelog Section | Examples |
 |-------------|-------------------|----------|
 | `feat`, `new`, `add` | **Added** | New features, capabilities |
-| `fix`, `bugfix` | **Fixed** | Bug fixes, corrections |
+| `fix`, `bugfix`, `revert` | **Fixed** | Bug fixes, corrections, reverts |
 | `security` | **Security** | Security patches, vulnerability fixes |
-| `perf`, `refactor`, `update`, `change`, `chore` | **Changed** | Performance improvements, refactoring |
+| `perf`, `refactor`, `update`, `change`, `chore`, `setup` | **Changed** | Performance improvements, refactoring, setup tasks |
 | `deprecate` | **Deprecated** | Soon-to-be removed features |
 | `remove`, `delete` | **Removed** | Removed features, deleted code |
 
@@ -228,10 +249,17 @@ jobs:
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `git-user-name` | Git user name for commits | `github-actions[bot]` |
-| `git-user-email` | Git user email for commits | `github-actions[bot]@users.noreply.github.com` |
+| `git-user-name` | Git user name for commits | `WG Tech Labs` |
+| `git-user-email` | Git user email for commits | `262751631+wgtechlabs-automation@users.noreply.github.com` |
 | `commit-convention` | Commit message convention for auto-generated commits and smart defaults (`clean-commit` or `conventional`) | `clean-commit` |
+### Version File Sync
 
+| Input | Description | Default |
+|-------|-------------|--------|
+| `sync-version-files` | Automatically update version in manifest files (`package.json`, `Cargo.toml`, `pyproject.toml`, `pubspec.yaml`) | `false` |
+| `version-file-paths` | Comma-separated paths to manifest files to update (auto-detected if not specified) | `` |
+
+> **Note:** Version file sync runs only when `commit-changelog` and `changelog-enabled` are both `true`. The action auto-detects supported manifest files in the repository root when `version-file-paths` is not specified.
 ### Advanced Options
 
 | Input | Description | Default |
