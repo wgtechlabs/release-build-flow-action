@@ -388,7 +388,7 @@ runs:
         PER_PACKAGE_COMMITS: ${{ steps.parse-commits.outputs.per-package-commits }}
     
     - name: Sync Version Files
-      if: inputs.sync-version-files == 'true' && inputs.commit-changelog == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
+      if: inputs.sync-version-files == 'true' && inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
       shell: bash
       run: |
         bash ${{ github.action_path }}/scripts/sync-version-files.sh

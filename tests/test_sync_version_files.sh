@@ -14,11 +14,9 @@ fi
 # Extract helper functions for testing
 get_func() {
     local func_name="$1"
-    awk -v fn="${func_name}" '
-        $0 ~ ("^" fn "[[:space:]]*\\(\\)") { in_func=1 }
-        in_func { print }
-        in_func && /^\}/ { exit }
-    ' "${SYNC_SCRIPT}"
+    awk "/^${func_name}[[:space:]]*\\(\\)[[:space:]]*\\{/ { in_func=1 }
+         in_func { print }
+         in_func && /^\\}/ { exit }" "${SYNC_SCRIPT}"
 }
 
 update_package_json_def="$(get_func "update_package_json")"
@@ -27,12 +25,21 @@ update_pyproject_toml_def="$(get_func "update_pyproject_toml")"
 update_pubspec_yaml_def="$(get_func "update_pubspec_yaml")"
 detect_version_files_def="$(get_func "detect_version_files")"
 
-for def_name in update_package_json_def update_cargo_toml_def update_pyproject_toml_def update_pubspec_yaml_def detect_version_files_def; do
-    if [ -z "${!def_name}" ]; then
-        echo "Error: could not extract ${def_name%_def} from ${SYNC_SCRIPT}" >&2
-        exit 1
-    fi
-done
+if [ -z "${update_package_json_def}" ]; then
+    echo "Error: could not extract update_package_json from ${SYNC_SCRIPT}" >&2; exit 1
+fi
+if [ -z "${update_cargo_toml_def}" ]; then
+    echo "Error: could not extract update_cargo_toml from ${SYNC_SCRIPT}" >&2; exit 1
+fi
+if [ -z "${update_pyproject_toml_def}" ]; then
+    echo "Error: could not extract update_pyproject_toml from ${SYNC_SCRIPT}" >&2; exit 1
+fi
+if [ -z "${update_pubspec_yaml_def}" ]; then
+    echo "Error: could not extract update_pubspec_yaml from ${SYNC_SCRIPT}" >&2; exit 1
+fi
+if [ -z "${detect_version_files_def}" ]; then
+    echo "Error: could not extract detect_version_files from ${SYNC_SCRIPT}" >&2; exit 1
+fi
 
 # Stubs for log helpers used inside the extracted functions
 log_info()    { :; }
@@ -123,7 +130,7 @@ run_test "update_package_json: updates from 0.2.4 to 0.3.0" "${result}" "0.3.0"
 # Cargo.toml tests
 # =============================================================================
 
-# Test 5: update_cargo_toml basic
+# Test 5: update_cargo_toml basic (version under [package])
 CARGO_FILE="${TMPDIR_TEST}/Cargo.toml"
 cat > "${CARGO_FILE}" <<'EOF'
 [package]
@@ -135,19 +142,39 @@ edition = "2021"
 serde = "1.0"
 EOF
 update_cargo_toml "${CARGO_FILE}" "1.2.0"
-result="$(grep -m1 '^version' "${CARGO_FILE}" | sed 's/.*= *"\(.*\)"/\1/')"
+result="$(awk '/^\[package\]/{in_pkg=1;next} /^\[/{in_pkg=0} in_pkg && /^version[[:space:]]*=/{match($0,/"[^"]*"/);print substr($0,RSTART+1,RLENGTH-2);exit}' "${CARGO_FILE}")"
 run_test "update_cargo_toml: basic version bump" "${result}" "1.2.0"
 
-# Test 6: update_cargo_toml only updates first occurrence
-# The serde dep version should not change
+# Test 6: update_cargo_toml does not change dependency version
 dep_version="$(grep 'serde' "${CARGO_FILE}" | sed 's/.*= *"\(.*\)"/\1/')"
 run_test "update_cargo_toml: does not change dependency versions" "${dep_version}" "1.0"
+
+# Test 7: update_cargo_toml scoped - version before [package] is untouched
+cat > "${CARGO_FILE}" <<'EOF'
+[workspace]
+version = "0.0.1"
+
+[package]
+name = "my-crate"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+dep = { version = "1.5.0" }
+EOF
+update_cargo_toml "${CARGO_FILE}" "0.3.0"
+pkg_version="$(awk '/^\[package\]/{in_pkg=1;next} /^\[/{in_pkg=0} in_pkg && /^version[[:space:]]*=/{match($0,/"[^"]*"/);print substr($0,RSTART+1,RLENGTH-2);exit}' "${CARGO_FILE}")"
+ws_version="$(awk '/^\[workspace\]/{in_ws=1;next} /^\[/{in_ws=0} in_ws && /^version[[:space:]]*=/{match($0,/"[^"]*"/);print substr($0,RSTART+1,RLENGTH-2);exit}' "${CARGO_FILE}")"
+dep_ver="$(grep 'dep = ' "${CARGO_FILE}" | sed 's/.*version = *"\([^"]*\)".*/\1/')"
+run_test "update_cargo_toml: [package] version updated" "${pkg_version}" "0.3.0"
+run_test "update_cargo_toml: [workspace] version unchanged" "${ws_version}" "0.0.1"
+run_test "update_cargo_toml: dependency version unchanged" "${dep_ver}" "1.5.0"
 
 # =============================================================================
 # pyproject.toml tests
 # =============================================================================
 
-# Test 7: update_pyproject_toml [project] style
+# Test 10: update_pyproject_toml [project] style
 PYPROJECT_FILE="${TMPDIR_TEST}/pyproject.toml"
 cat > "${PYPROJECT_FILE}" <<'EOF'
 [project]
@@ -156,24 +183,57 @@ version = "0.5.0"
 description = "A package"
 EOF
 update_pyproject_toml "${PYPROJECT_FILE}" "1.0.0"
-result="$(grep -m1 '^version' "${PYPROJECT_FILE}" | sed 's/.*= *"\(.*\)"/\1/')"
+result="$(awk '/^\[project\]/{in_s=1;next} /^\[/{in_s=0} in_s && /^version[[:space:]]*=/{match($0,/"[^"]*"/);print substr($0,RSTART+1,RLENGTH-2);exit}' "${PYPROJECT_FILE}")"
 run_test "update_pyproject_toml: [project] version bump" "${result}" "1.0.0"
 
-# Test 8: update_pyproject_toml [tool.poetry] style
+# Test 11: update_pyproject_toml [tool.poetry] style
 cat > "${PYPROJECT_FILE}" <<'EOF'
 [tool.poetry]
 name = "my-lib"
 version = "2.0.0"
 EOF
 update_pyproject_toml "${PYPROJECT_FILE}" "2.1.0"
-result="$(grep -m1 '^version' "${PYPROJECT_FILE}" | sed 's/.*= *"\(.*\)"/\1/')"
+result="$(awk '/^\[tool\.poetry\]/{in_s=1;next} /^\[/{in_s=0} in_s && /^version[[:space:]]*=/{match($0,/"[^"]*"/);print substr($0,RSTART+1,RLENGTH-2);exit}' "${PYPROJECT_FILE}")"
 run_test "update_pyproject_toml: [tool.poetry] version bump" "${result}" "2.1.0"
+
+# Test 12: update_pyproject_toml scoped - earlier unrelated version is untouched
+cat > "${PYPROJECT_FILE}" <<'EOF'
+[tool.black]
+line-length = 88
+version = "23.1.0"
+
+[project]
+name = "my-package"
+version = "0.5.0"
+description = "A package"
+EOF
+update_pyproject_toml "${PYPROJECT_FILE}" "1.0.0"
+project_version="$(awk '/^\[project\]/{in_s=1;next} /^\[/{in_s=0} in_s && /^version[[:space:]]*=/{match($0,/"[^"]*"/);print substr($0,RSTART+1,RLENGTH-2);exit}' "${PYPROJECT_FILE}")"
+black_version="$(awk '/^\[tool\.black\]/{in_s=1;next} /^\[/{in_s=0} in_s && /^version[[:space:]]*=/{match($0,/"[^"]*"/);print substr($0,RSTART+1,RLENGTH-2);exit}' "${PYPROJECT_FILE}")"
+run_test "update_pyproject_toml: [project] scoped version bump" "${project_version}" "1.0.0"
+run_test "update_pyproject_toml: [tool.black] version unchanged" "${black_version}" "23.1.0"
+
+# Test 14: update_pyproject_toml [tool.poetry] with earlier dependency version
+cat > "${PYPROJECT_FILE}" <<'EOF'
+[tool.poetry.dependencies]
+python = "^3.10"
+my-lib = { version = "3.0.0" }
+
+[tool.poetry]
+name = "my-lib"
+version = "2.0.0"
+EOF
+update_pyproject_toml "${PYPROJECT_FILE}" "2.1.0"
+poetry_version="$(awk '/^\[tool\.poetry\]/{in_s=1;next} /^\[/{in_s=0} in_s && /^version[[:space:]]*=/{match($0,/"[^"]*"/);print substr($0,RSTART+1,RLENGTH-2);exit}' "${PYPROJECT_FILE}")"
+dep_version="$(sed -n 's/.*my-lib[[:space:]]*=[[:space:]]*{[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "${PYPROJECT_FILE}")"
+run_test "update_pyproject_toml: [tool.poetry] scoped version bump" "${poetry_version}" "2.1.0"
+run_test "update_pyproject_toml: [tool.poetry.dependencies] version unchanged" "${dep_version}" "3.0.0"
 
 # =============================================================================
 # pubspec.yaml tests
 # =============================================================================
 
-# Test 9: update_pubspec_yaml basic
+# update_pubspec_yaml basic
 PUBSPEC_FILE="${TMPDIR_TEST}/pubspec.yaml"
 cat > "${PUBSPEC_FILE}" <<'EOF'
 name: my_flutter_app
@@ -190,20 +250,20 @@ run_test "update_pubspec_yaml: basic version bump" "${result}" "1.1.0"
 # detect_version_files tests
 # =============================================================================
 
-# Test 10: auto-detection finds package.json when present
+# auto-detection finds package.json when present
 DETECT_DIR="${TMPDIR_TEST}/detect_test"
 mkdir -p "${DETECT_DIR}"
 touch "${DETECT_DIR}/package.json"
 result="$(cd "${DETECT_DIR}" && detect_version_files)"
 run_test "detect_version_files: finds package.json" "${result}" "package.json"
 
-# Test 11: auto-detection returns empty when no manifest files present
+# auto-detection returns empty when no manifest files present
 EMPTY_DIR="${TMPDIR_TEST}/empty_test"
 mkdir -p "${EMPTY_DIR}"
 result="$(cd "${EMPTY_DIR}" && detect_version_files)"
 run_test "detect_version_files: empty result when no manifests" "${result}" ""
 
-# Test 12: auto-detection finds multiple files
+# auto-detection finds multiple files
 MULTI_DIR="${TMPDIR_TEST}/multi_test"
 mkdir -p "${MULTI_DIR}"
 touch "${MULTI_DIR}/package.json"
@@ -215,7 +275,7 @@ run_test "detect_version_files: finds multiple manifests" "${result}" "package.j
 # Integration: run full sync-version-files.sh with env vars
 # =============================================================================
 
-# Test 13: SYNC_VERSION_FILES=false skips updates
+# Integration: SYNC_VERSION_FILES=false skips updates
 INT_DIR="${TMPDIR_TEST}/integration_skip"
 mkdir -p "${INT_DIR}"
 cat > "${INT_DIR}/package.json" <<'EOF'
@@ -229,7 +289,7 @@ EOF
 result="$(jq -r '.version' "${INT_DIR}/package.json")"
 run_test "Integration: SYNC_VERSION_FILES=false does not update" "${result}" "1.0.0"
 
-# Test 14: Full integration with package.json
+# Full integration with package.json
 INT_DIR2="${TMPDIR_TEST}/integration_run"
 mkdir -p "${INT_DIR2}"
 cat > "${INT_DIR2}/package.json" <<'EOF'
@@ -243,7 +303,7 @@ EOF
 result="$(jq -r '.version' "${INT_DIR2}/package.json")"
 run_test "Integration: updates package.json version" "${result}" "3.0.0"
 
-# Test 15: Integration with auto-detection (no VERSION_FILE_PATHS)
+# Integration with auto-detection (no VERSION_FILE_PATHS)
 INT_DIR3="${TMPDIR_TEST}/integration_auto"
 mkdir -p "${INT_DIR3}"
 cat > "${INT_DIR3}/package.json" <<'EOF'

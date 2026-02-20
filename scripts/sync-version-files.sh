@@ -55,7 +55,7 @@ update_package_json() {
 
     if ! command -v jq &> /dev/null; then
         log_warning "jq not found; skipping ${file}"
-        return 1
+        return 0
     fi
 
     local current_version
@@ -63,7 +63,7 @@ update_package_json() {
 
     if [[ -z "${current_version}" ]]; then
         log_warning "No .version field found in ${file} (file may be malformed or missing version key); skipping"
-        return 1
+        return 0
     fi
 
     if [[ "${current_version}" == "${version}" ]]; then
@@ -75,18 +75,26 @@ update_package_json() {
     log_success "Updated ${file}: ${current_version} → ${version}"
 }
 
-# Update version in Cargo.toml (first occurrence in [package] section)
+# Update version in Cargo.toml (version field inside [package] section only)
 update_cargo_toml() {
     local file="$1"
     local version="$2"
 
-    # Replace the first `version = "..."` line (typically under [package])
+    # Extract current version from the [package] section only
     local current_version
-    current_version="$(grep -m1 '^version[[:space:]]*=' "${file}" | sed 's/.*=[[:space:]]*"\(.*\)".*/\1/' || true)"
+    current_version="$(awk '
+        /^\[package\]/ { in_pkg=1; next }
+        /^\[/ { in_pkg=0 }
+        in_pkg && /^version[[:space:]]*=/ {
+            match($0, /"[^"]*"/)
+            print substr($0, RSTART+1, RLENGTH-2)
+            exit
+        }
+    ' "${file}" || true)"
 
     if [[ -z "${current_version}" ]]; then
-        log_warning "No version field found in ${file}; skipping"
-        return 1
+        log_warning "No version field found under [package] in ${file}; skipping"
+        return 0
     fi
 
     if [[ "${current_version}" == "${version}" ]]; then
@@ -94,9 +102,11 @@ update_cargo_toml() {
         return 0
     fi
 
-    # Use awk to replace only the first occurrence of version = "..."
+    # Replace version only inside [package] section
     awk -v ver="${version}" '
-        !replaced && /^version[[:space:]]*=/ {
+        /^\[package\]/ { in_pkg=1 }
+        /^\[/ && !/^\[package\]/ { in_pkg=0 }
+        in_pkg && !replaced && /^version[[:space:]]*=/ {
             sub(/"[^"]*"/, "\"" ver "\"")
             replaced=1
         }
@@ -110,12 +120,21 @@ update_pyproject_toml() {
     local file="$1"
     local version="$2"
 
+    # Extract current version from [project] or [tool.poetry] section only
     local current_version
-    current_version="$(grep -m1 '^version[[:space:]]*=' "${file}" | sed 's/.*=[[:space:]]*"\(.*\)".*/\1/' || true)"
+    current_version="$(awk '
+        /^\[project\]/ || /^\[tool\.poetry\]/ { in_section=1; next }
+        /^\[/ { in_section=0 }
+        in_section && /^version[[:space:]]*=/ {
+            match($0, /"[^"]*"/)
+            print substr($0, RSTART+1, RLENGTH-2)
+            exit
+        }
+    ' "${file}" || true)"
 
     if [[ -z "${current_version}" ]]; then
-        log_warning "No version field found in ${file}; skipping"
-        return 1
+        log_warning "No version field found under [project] or [tool.poetry] in ${file}; skipping"
+        return 0
     fi
 
     if [[ "${current_version}" == "${version}" ]]; then
@@ -123,9 +142,11 @@ update_pyproject_toml() {
         return 0
     fi
 
-    # Use awk to replace only the first occurrence of version = "..."
+    # Replace version only inside [project] or [tool.poetry] sections
     awk -v ver="${version}" '
-        !replaced && /^version[[:space:]]*=/ {
+        /^\[project\]/ || /^\[tool\.poetry\]/ { in_section=1 }
+        /^\[/ && !/^\[project\]/ && !/^\[tool\.poetry\]/ { in_section=0 }
+        in_section && !replaced && /^version[[:space:]]*=/ {
             sub(/"[^"]*"/, "\"" ver "\"")
             replaced=1
         }
@@ -144,7 +165,7 @@ update_pubspec_yaml() {
 
     if [[ -z "${current_version}" ]]; then
         log_warning "No version field found in ${file}; skipping"
-        return 1
+        return 0
     fi
 
     if [[ "${current_version}" == "${version}" ]]; then
