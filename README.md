@@ -153,6 +153,18 @@ jobs:
 ```
 
 > **Note:** By default, auto-generated commits (e.g., changelog updates) and tag annotations use Clean Commit convention with emoji prefixes. Set `commit-convention: 'conventional'` to use standard Conventional Commits format instead.
+>
+> The `commit-convention` setting also adjusts smart defaults for version bump keywords and excluded types:
+>
+> | Setting | `clean-commit` (default) | `conventional` |
+> |---|---|---|
+> | Commit format | `☕ chore: ...` | `chore: ...` |
+> | Tag format | `🚀 release: v1.2.0` | `Release v1.2.0` |
+> | `minor-keywords` | `feat,new,add` | `feat` |
+> | `patch-keywords` | `fix,bugfix,security,perf,update,remove` | `fix,perf,revert` |
+> | `exclude-types` | `docs,style,test,ci,build,release` | `docs,style,test,ci,build,chore` |
+>
+> User-provided values always take priority over convention defaults.
 
 ---
 
@@ -192,7 +204,7 @@ jobs:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `commit-type-mapping` | JSON mapping of commit types to changelog sections | Standard mapping |
-| `exclude-types` | Comma-separated list of commit types to exclude | `docs,style,test,ci,build` |
+| `exclude-types` | Comma-separated list of commit types to exclude | `docs,style,test,ci,build,release` |
 | `exclude-scopes` | Comma-separated list of commit scopes to exclude | `` |
 
 ### Version Bump Rules
@@ -201,7 +213,7 @@ jobs:
 |-------|-------------|---------|
 | `major-keywords` | Keywords that trigger major version bump | `BREAKING CHANGE,BREAKING-CHANGE,breaking` |
 | `minor-keywords` | Keywords that trigger minor version bump | `feat,new,add` |
-| `patch-keywords` | Keywords that trigger patch version bump | `fix,bugfix,security,perf,update,change,chore,setup,remove,delete,deprecate` |
+| `patch-keywords` | Keywords that trigger patch version bump | `fix,bugfix,security,perf,update,remove` |
 
 ### Release Configuration
 
@@ -218,7 +230,7 @@ jobs:
 |-------|-------------|---------|
 | `git-user-name` | Git user name for commits | `github-actions[bot]` |
 | `git-user-email` | Git user email for commits | `github-actions[bot]@users.noreply.github.com` |
-| `commit-convention` | Commit message convention for auto-generated commits (`clean-commit` or `conventional`) | `clean-commit` |
+| `commit-convention` | Commit message convention for auto-generated commits and smart defaults (`clean-commit` or `conventional`) | `clean-commit` |
 
 ### Advanced Options
 
