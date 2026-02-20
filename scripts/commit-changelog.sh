@@ -45,6 +45,8 @@ CHANGELOG_PATH="${CHANGELOG_PATH:-./CHANGELOG.md}"
 VERSION_TAG="${VERSION_TAG:-}"
 WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
 COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
+SYNC_VERSION_FILES="${SYNC_VERSION_FILES:-false}"
+VERSION_FILE_PATHS="${VERSION_FILE_PATHS:-}"
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -75,6 +77,41 @@ format_commit_message() {
         # Conventional Commits: <type>: <description>
         echo "${type}: ${description}"
     fi
+}
+
+# Stage synced manifest files (package.json, Cargo.toml, etc.) if sync is enabled
+stage_version_files() {
+    if [[ "${SYNC_VERSION_FILES}" != "true" ]]; then
+        return 0
+    fi
+
+    local file_paths="${VERSION_FILE_PATHS}"
+
+    # Auto-detect if no paths provided
+    if [[ -z "${file_paths}" ]]; then
+        local -a detected=()
+        [[ -f "package.json" ]]   && detected+=("package.json")
+        [[ -f "Cargo.toml" ]]     && detected+=("Cargo.toml")
+        [[ -f "pyproject.toml" ]] && detected+=("pyproject.toml")
+        [[ -f "pubspec.yaml" ]]   && detected+=("pubspec.yaml")
+        local IFS=','
+        file_paths="${detected[*]}"
+    fi
+
+    if [[ -z "${file_paths}" ]]; then
+        return 0
+    fi
+
+    IFS=',' read -ra file_list <<< "${file_paths}"
+    for raw_file in "${file_list[@]}"; do
+        local file="${raw_file#"${raw_file%%[! ]*}"}"
+        file="${file%"${file##*[! ]}"}"
+        [[ -z "${file}" ]] && continue
+        if [[ -f "${file}" ]]; then
+            git add "${file}"
+            log_info "Staged version file: ${file}"
+        fi
+    done
 }
 
 # =============================================================================
@@ -110,11 +147,13 @@ if [[ "${MONOREPO}" == "true" ]]; then
     fi
     
     COMMIT_MSG=$(format_commit_message "chore" "update changelogs for ${VERSION_TAG}")
+    stage_version_files
     git commit -m "${COMMIT_MSG}"
 else
     log_info "Committing changelog..."
     git add "${CHANGELOG_PATH}"
     COMMIT_MSG=$(format_commit_message "chore" "update CHANGELOG.md for ${VERSION_TAG}")
+    stage_version_files
     git commit -m "${COMMIT_MSG}"
 fi
 

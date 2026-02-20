@@ -27,3 +27,6 @@ jobs:
       
       - name: Run setup type tests
         run: bash tests/test_setup_type.sh
+      
+      - name: Run sync version files tests
+        run: bash tests/test_sync_version_files.sh
