@@ -44,6 +44,14 @@ MONOREPO="${MONOREPO:-false}"
 CHANGELOG_PATH="${CHANGELOG_PATH:-./CHANGELOG.md}"
 VERSION_TAG="${VERSION_TAG:-}"
 WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
+# Load from shared file if available (avoids env var size/encoding issues with large monorepos)
+if [[ -n "${WORKSPACE_PACKAGES_FILE:-}" && -f "${WORKSPACE_PACKAGES_FILE}" ]]; then
+    WORKSPACE_PACKAGES=$(cat "${WORKSPACE_PACKAGES_FILE}")
+    if ! echo "${WORKSPACE_PACKAGES}" | jq empty 2>/dev/null; then
+        log_warning "Shared packages file contains invalid JSON, falling back to env var"
+        WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
+    fi
+fi
 COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
 SYNC_VERSION_FILES="${SYNC_VERSION_FILES:-false}"
 VERSION_FILE_PATHS="${VERSION_FILE_PATHS:-}"

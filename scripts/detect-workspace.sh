@@ -298,9 +298,20 @@ if command -v jq &> /dev/null && [[ "${PACKAGES_JSON}" != "[]" ]]; then
     fi
 fi
 
+# Write packages JSON to a shared file to avoid env var size/encoding issues
+# when passing large JSON blobs through GitHub Actions outputs and YAML expressions
+WORKSPACE_FILE="${RUNNER_TEMP}/workspace-packages.json"
+if echo "${PACKAGES_JSON}" | jq '.' > "${WORKSPACE_FILE}"; then
+    log_debug "Packages JSON written to ${WORKSPACE_FILE}"
+else
+    log_warning "Failed to write packages JSON to ${WORKSPACE_FILE}"
+    WORKSPACE_FILE=""
+fi
+
 # Output results - use compact JSON for safety
 log_debug "Packages JSON (first 200 chars): ${PACKAGES_JSON:0:200}"
 echo "packages=$(echo "${PACKAGES_JSON}" | jq -c '.')" >> "${GITHUB_OUTPUT}"
+echo "packages-file=${WORKSPACE_FILE}" >> "${GITHUB_OUTPUT}"
 echo "package-count=${COUNT}" >> "${GITHUB_OUTPUT}"
 echo "package-manager=${PKG_MGR}" >> "${GITHUB_OUTPUT}"
 echo "scope-mapping=$(echo "${SCOPE_PACKAGE_MAPPING}" | jq -c '.')" >> "${GITHUB_OUTPUT}"
