@@ -389,6 +389,22 @@ if [[ "${MONOREPO}" != "true" ]]; then
     exit 0
 fi
 
+# Validate WORKSPACE_PACKAGES is a JSON array of objects (not strings or a non-array).
+# If malformed, fall back to empty so jq operations are safely skipped.
+if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+    pkg_valid=$(echo "${WORKSPACE_PACKAGES}" | jq -r '
+        if type != "array" then "false"
+        elif length == 0 then "true"
+        elif .[0] | type == "object" then "true"
+        else "false"
+        end
+    ' 2>/dev/null || echo "false")
+    if [[ "${pkg_valid}" != "true" ]]; then
+        log_warning "WORKSPACE_PACKAGES is not a valid array of package objects, ignoring"
+        WORKSPACE_PACKAGES="[]"
+    fi
+fi
+
 log_info "Processing monorepo packages..."
 
 # Helper function to detect package from commit scope
