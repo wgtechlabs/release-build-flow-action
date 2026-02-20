@@ -9,6 +9,9 @@
 #   - VERSION           The new version string (e.g., 1.2.3)
 #   - SYNC_VERSION_FILES  Whether to sync (true/false)
 #   - VERSION_FILE_PATHS  Comma-separated file paths (auto-detected if empty)
+#   - MONOREPO          Whether monorepo mode is active (true/false)
+#   - PACKAGES_DATA     JSON array of package data from detect-version-bump
+#   - UNIFIED_VERSION   Whether all packages share a single version (true/false)
 # =============================================================================
 
 set -euo pipefail
@@ -43,6 +46,9 @@ log_error() {
 SYNC_VERSION_FILES="${SYNC_VERSION_FILES:-false}"
 VERSION="${VERSION:-}"
 VERSION_FILE_PATHS="${VERSION_FILE_PATHS:-}"
+MONOREPO="${MONOREPO:-false}"
+PACKAGES_DATA="${PACKAGES_DATA:-[]}"
+UNIFIED_VERSION="${UNIFIED_VERSION:-false}"
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -217,17 +223,86 @@ update_version_file() {
     esac
 }
 
-# Auto-detect manifest files in the repository root
+# Auto-detect manifest files in a directory (defaults to current directory)
 detect_version_files() {
+    local dir="${1:-.}"
     local -a detected=()
 
-    [[ -f "package.json" ]]   && detected+=("package.json")
-    [[ -f "Cargo.toml" ]]     && detected+=("Cargo.toml")
-    [[ -f "pyproject.toml" ]] && detected+=("pyproject.toml")
-    [[ -f "pubspec.yaml" ]]   && detected+=("pubspec.yaml")
+    [[ -f "${dir}/package.json" ]]   && detected+=("${dir}/package.json")
+    [[ -f "${dir}/Cargo.toml" ]]     && detected+=("${dir}/Cargo.toml")
+    [[ -f "${dir}/pyproject.toml" ]] && detected+=("${dir}/pyproject.toml")
+    [[ -f "${dir}/pubspec.yaml" ]]   && detected+=("${dir}/pubspec.yaml")
 
     local IFS=','
     echo "${detected[*]}"
+}
+
+# Sync version files for all packages in a monorepo
+# Reads PACKAGES_DATA JSON array where each entry has:
+#   { name, path, oldVersion, version, bumpType, tag }
+sync_monorepo_packages() {
+    if ! command -v jq &> /dev/null; then
+        log_error "jq is required for monorepo version sync"
+        return 1
+    fi
+
+    local pkg_count
+    pkg_count="$(echo "${PACKAGES_DATA}" | jq 'length')"
+
+    if [[ "${pkg_count}" -eq 0 ]]; then
+        log_info "No packages found in packages-data"
+        return 0
+    fi
+
+    log_info "Syncing versions for ${pkg_count} workspace packages..."
+
+    local synced=0
+    local skipped=0
+
+    for (( i=0; i<pkg_count; i++ )); do
+        local pkg_name pkg_path pkg_version bump_type
+        pkg_name="$(echo "${PACKAGES_DATA}" | jq -r ".[${i}].name")"
+        pkg_path="$(echo "${PACKAGES_DATA}" | jq -r ".[${i}].path")"
+        pkg_version="$(echo "${PACKAGES_DATA}" | jq -r ".[${i}].version")"
+        bump_type="$(echo "${PACKAGES_DATA}" | jq -r ".[${i}].bumpType")"
+
+        # In unified mode, sync all packages; otherwise only bumped packages
+        if [[ "${UNIFIED_VERSION}" != "true" ]] && [[ "${bump_type}" == "none" ]]; then
+            log_info "Skipping ${pkg_name} (no version bump)"
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        if [[ ! -d "${pkg_path}" ]]; then
+            log_warning "Package directory not found: ${pkg_path}; skipping ${pkg_name}"
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        # Detect manifest files in the package directory
+        local pkg_files
+        pkg_files="$(detect_version_files "${pkg_path}")"
+
+        if [[ -z "${pkg_files}" ]]; then
+            log_warning "No manifest files found in ${pkg_path}; skipping ${pkg_name}"
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        log_info "Syncing ${pkg_name} → ${pkg_version}"
+
+        IFS=',' read -ra file_list <<< "${pkg_files}"
+        for file in "${file_list[@]}"; do
+            file="${file#"${file%%[! ]*}"}"
+            file="${file%"${file##*[! ]}"}"
+            [[ -z "${file}" ]] && continue
+            update_version_file "${file}" "${pkg_version}"
+        done
+
+        synced=$((synced + 1))
+    done
+
+    log_success "Monorepo version sync: ${synced} synced, ${skipped} skipped"
 }
 
 # =============================================================================
@@ -243,6 +318,37 @@ if [[ -z "${VERSION}" ]]; then
     log_error "VERSION is required but not set"
     exit 1
 fi
+
+# =============================================================================
+# MONOREPO MODE
+# =============================================================================
+
+if [[ "${MONOREPO}" == "true" ]]; then
+    log_info "Monorepo version sync mode"
+
+    # Sync per-package manifest files
+    sync_monorepo_packages
+
+    # Also sync root manifest files if they exist
+    ROOT_FILES="$(detect_version_files ".")"
+    if [[ -n "${ROOT_FILES}" ]]; then
+        log_info "Syncing root manifest files with version ${VERSION}..."
+        IFS=',' read -ra root_file_list <<< "${ROOT_FILES}"
+        for raw_file in "${root_file_list[@]}"; do
+            file="${raw_file#"${raw_file%%[! ]*}"}"
+            file="${file%"${file##*[! ]}"}"
+            [[ -z "${file}" ]] && continue
+            update_version_file "${file}" "${VERSION}"
+        done
+    fi
+
+    log_success "Monorepo version file sync complete"
+    exit 0
+fi
+
+# =============================================================================
+# SINGLE REPO MODE
+# =============================================================================
 
 # Resolve file list
 if [[ -z "${VERSION_FILE_PATHS}" ]]; then
