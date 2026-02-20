@@ -80,12 +80,18 @@ generate_release_name() {
     local tag="${3:-}"
     local date=$(date +%Y-%m-%d)
     
-    # Use pure bash string replacement to avoid all sed cross-platform issues
-    # with brace interpretation (BRE/ERE interval expressions)
+    # Use variable-based patterns to avoid bash brace parsing ambiguity
+    # When \{tag\} is used directly in ${name//\{tag\}/...}, some bash versions
+    # interpret the \} as closing the ${...} expansion prematurely, leaving a
+    # trailing } in the output. Storing patterns in variables avoids this entirely.
+    local p_version='{version}'
+    local p_tag='{tag}'
+    local p_date='{date}'
+    
     local name="${template}"
-    name="${name//\{version\}/${version}}"
-    name="${name//\{tag\}/${tag}}"
-    name="${name//\{date\}/${date}}"
+    name="${name//$p_version/${version}}"
+    name="${name//$p_tag/${tag}}"
+    name="${name//$p_date/${date}}"
     
     echo "${name}"
 }
