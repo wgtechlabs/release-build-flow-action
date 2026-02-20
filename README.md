@@ -139,6 +139,18 @@ jobs:
     tag-only: true
 ```
 
+### Conventional Commits (No Emoji)
+
+```yaml
+- name: Create Release with Conventional Commits
+  uses: wgtechlabs/release-build-flow-action@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    commit-convention: 'conventional'
+```
+
+> **Note:** By default, auto-generated commits (e.g., changelog updates) and tag annotations use Clean Commit convention with emoji prefixes. Set `commit-convention: 'conventional'` to use standard Conventional Commits format instead.
+
 ---
 
 ## 📖 Inputs
@@ -203,6 +215,7 @@ jobs:
 |-------|-------------|---------|
 | `git-user-name` | Git user name for commits | `github-actions[bot]` |
 | `git-user-email` | Git user email for commits | `github-actions[bot]@users.noreply.github.com` |
+| `commit-convention` | Commit message convention for auto-generated commits (`clean-commit` or `conventional`) | `clean-commit` |
 
 ### Advanced Options
 
