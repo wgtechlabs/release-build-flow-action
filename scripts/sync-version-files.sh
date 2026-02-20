@@ -261,10 +261,9 @@ sync_monorepo_packages() {
 
     for (( i=0; i<pkg_count; i++ )); do
         local pkg_name pkg_path pkg_version bump_type
-        pkg_name="$(echo "${PACKAGES_DATA}" | jq -r ".[${i}].name")"
-        pkg_path="$(echo "${PACKAGES_DATA}" | jq -r ".[${i}].path")"
-        pkg_version="$(echo "${PACKAGES_DATA}" | jq -r ".[${i}].version")"
-        bump_type="$(echo "${PACKAGES_DATA}" | jq -r ".[${i}].bumpType")"
+        read -r pkg_name pkg_path pkg_version bump_type < <(
+            echo "${PACKAGES_DATA}" | jq -r ".[${i}] | [.name, .path, .version, .bumpType] | @tsv"
+        )
 
         # In unified mode, sync all packages; otherwise only bumped packages
         if [[ "${UNIFIED_VERSION}" != "true" ]] && [[ "${bump_type}" == "none" ]]; then
