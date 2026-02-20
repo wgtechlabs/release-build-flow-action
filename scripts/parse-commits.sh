@@ -156,8 +156,10 @@ parse_commit() {
     local description=""
     
     # Strip leading emoji and whitespace before parsing
-    # Emojis are non-ASCII characters, so strip everything that's not a-zA-Z from the start
-    local cleaned_subject=$(sed 's/^[^a-zA-Z]*//' <<< "${subject}")
+    # Use bash parameter expansion instead of sed to avoid binary-file detection
+    # issues with 4-byte UTF-8 emoji sequences (e.g., 📦, 🔧, 🚀)
+    local prefix="${subject%%[a-zA-Z]*}"
+    local cleaned_subject="${subject#"$prefix"}"
     
     # Parse conventional commit format: type(scope)!: description
     # Allow optional whitespace before scope parentheses to support Clean Commit format
