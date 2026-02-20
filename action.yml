@@ -99,7 +99,7 @@ inputs:
   patch-keywords:
     description: 'Comma-separated keywords that trigger patch version bump'
     required: false
-    default: 'fix,bugfix,security,perf,update,change,chore,setup,remove,delete,deprecate'
+    default: 'fix,bugfix,security,perf'
   
   # Release Configuration
   create-release:
