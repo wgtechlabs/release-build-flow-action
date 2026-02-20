@@ -12,6 +12,27 @@ Stop manually managing versions, changelogs, and GitHub Releases. This action au
 
 ---
 
+## 📑 Table of Contents
+
+- [Why Use This Action?](#-why-use-this-action)
+- [How It Works](#-how-it-works)
+- [Features](#-features)
+- [Commit Type Mapping](#-commit-type-mapping)
+- [Quick Start](#-quick-start)
+- [Inputs](#-inputs)
+- [Monorepo Support](#-monorepo-support)
+- [Outputs](#-outputs)
+- [Examples](#-examples)
+- [Conventional Commit Examples](#-conventional-commit-examples)
+- [Generated CHANGELOG.md Example](#-generated-changelogmd-example)
+- [Development](#-development)
+- [Troubleshooting](#-troubleshooting)
+- [License](#-license)
+- [Contributing](#-contributing)
+- [Acknowledgments](#-acknowledgments)
+
+---
+
 ## 🎯 Why Use This Action?
 
 **The Problem:**  
@@ -70,9 +91,9 @@ This action uses conventional commits (Clean Commit convention) and maps them to
 | Commit Type | Changelog Section | Examples |
 |-------------|-------------------|----------|
 | `feat`, `new`, `add` | **Added** | New features, capabilities |
-| `fix`, `bugfix` | **Fixed** | Bug fixes, corrections |
+| `fix`, `bugfix`, `revert` | **Fixed** | Bug fixes, corrections, reverts |
 | `security` | **Security** | Security patches, vulnerability fixes |
-| `perf`, `refactor`, `update`, `change`, `chore` | **Changed** | Performance improvements, refactoring |
+| `perf`, `refactor`, `update`, `change`, `chore`, `setup` | **Changed** | Performance improvements, refactoring, setup tasks |
 | `deprecate` | **Deprecated** | Soon-to-be removed features |
 | `remove`, `delete` | **Removed** | Removed features, deleted code |
 
@@ -228,10 +249,17 @@ jobs:
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `git-user-name` | Git user name for commits | `github-actions[bot]` |
-| `git-user-email` | Git user email for commits | `github-actions[bot]@users.noreply.github.com` |
+| `git-user-name` | Git user name for commits | `WG Tech Labs` |
+| `git-user-email` | Git user email for commits | `262751631+wgtechlabs-automation@users.noreply.github.com` |
 | `commit-convention` | Commit message convention for auto-generated commits and smart defaults (`clean-commit` or `conventional`) | `clean-commit` |
+### Version File Sync
 
+| Input | Description | Default |
+|-------|-------------|--------|
+| `sync-version-files` | Automatically update version in manifest files (`package.json`, `Cargo.toml`, `pyproject.toml`, `pubspec.yaml`) | `false` |
+| `version-file-paths` | Comma-separated paths to manifest files to update (auto-detected if not specified) | `` |
+
+> **Note:** Version file sync runs only when `commit-changelog` and `changelog-enabled` are both `true`. The action auto-detects supported manifest files in the repository root when `version-file-paths` is not specified.
 ### Advanced Options
 
 | Input | Description | Default |
@@ -505,6 +533,45 @@ jobs:
       }'
 ```
 
+### Example 6: Triggering Downstream Workflows
+
+If you need a GitHub Release to trigger other workflows (e.g., a container build workflow that listens for `release: [published]`), you must use a **PAT or GitHub App token** instead of the default `GITHUB_TOKEN`. Releases created with `GITHUB_TOKEN` will not trigger workflows listening on `release` events (i.e., will not start downstream workflow runs) due to a [GitHub platform limitation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow).
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Release
+        id: release
+        uses: wgtechlabs/release-build-flow-action@v1
+        with:
+          # Use a PAT or GitHub App token so the resulting release
+          # event triggers downstream workflows (e.g., container builds).
+          # GITHUB_TOKEN cannot trigger new workflow runs.
+          github-token: ${{ secrets.PAT_TOKEN }}
+```
+
+The downstream workflow (e.g., `container-build-flow-action`) will then fire normally:
+
+```yaml
+# .github/workflows/container.yml
+on:
+  release:
+    types: [published]  # ✅ Triggered when PAT/App token creates the release
+```
+
 ---
 
 ## 📚 Conventional Commit Examples
@@ -695,6 +762,30 @@ permissions:
 - Always use scoped commits: `fix(core): bug description`
 - Set `change-detection: scope` to only use scope-based routing
 - Use `unified-version: true` if you want all packages to share one version
+
+### Downstream workflows not triggered after release
+
+**Cause:** GitHub releases created with the default `${{ secrets.GITHUB_TOKEN }}` [do not trigger other workflows](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow) in the same repository. This is an intentional GitHub platform limitation to prevent accidental recursive workflow runs.
+
+This affects chained automation such as:
+
+```
+Push to main
+  → release-build-flow-action creates GitHub Release
+  → container-build-flow-action watches release: [published]
+  → ❌ Never triggered because GITHUB_TOKEN created the release
+```
+
+**Solution:** Use a Personal Access Token (PAT) or a [GitHub App token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow) instead of `GITHUB_TOKEN`:
+
+```yaml
+- name: Create Release
+  uses: wgtechlabs/release-build-flow-action@v1
+  with:
+    github-token: ${{ secrets.PAT_TOKEN }}  # PAT or GitHub App token
+```
+
+> **Note:** GitHub App tokens are the recommended approach for production use—they provide fine-grained permissions, are auditable, and don't depend on an individual user's account. See [Example 6](#example-6-triggering-downstream-workflows) for a full setup.
 
 ---
 
