@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.0] - 2026-02-20
+
+### Added
+
+- auto-sync version to manifest files on release (#15)
+
 ## [1.1.4] - 2026-02-20
 
 ### Changed
