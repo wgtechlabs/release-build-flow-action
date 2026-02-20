@@ -38,6 +38,22 @@ log_success() {
 MONOREPO="${MONOREPO:-false}"
 VERSION_TAG="${VERSION_TAG:-}"
 PACKAGES_DATA="${PACKAGES_DATA:-[]}"
+COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+# Format tag message based on chosen convention
+format_tag_message() {
+    local tag="$1"
+    
+    if [[ "${COMMIT_CONVENTION}" == "clean-commit" ]]; then
+        echo "🚀 release: ${tag}"
+    else
+        echo "Release ${tag}"
+    fi
+}
 
 # =============================================================================
 # MAIN LOGIC
@@ -55,19 +71,22 @@ if [[ "${MONOREPO}" == "true" && "${PACKAGES_DATA}" != "[]" ]]; then
             [[ -z "${tag}" ]] && continue
             
             log_info "Creating tag: ${tag} for ${name}"
-            git tag -a "${tag}" -m "Release ${tag}"
+            TAG_MSG=$(format_tag_message "${tag}")
+            git tag -a "${tag}" -m "${TAG_MSG}"
             git push origin "${tag}"
         done
         
         log_success "Created tags for all updated packages"
     else
         log_info "jq not available, creating unified tag"
-        git tag -a "${VERSION_TAG}" -m "Release ${VERSION_TAG}"
+        TAG_MSG=$(format_tag_message "${VERSION_TAG}")
+        git tag -a "${VERSION_TAG}" -m "${TAG_MSG}"
         git push origin "${VERSION_TAG}"
     fi
 else
     log_info "Creating tag: ${VERSION_TAG}"
-    git tag -a "${VERSION_TAG}" -m "Release ${VERSION_TAG}"
+    TAG_MSG=$(format_tag_message "${VERSION_TAG}")
+    git tag -a "${VERSION_TAG}" -m "${TAG_MSG}"
     git push origin "${VERSION_TAG}"
     log_success "Tag created successfully"
 fi
