@@ -80,13 +80,12 @@ generate_release_name() {
     local tag="${3:-}"
     local date=$(date +%Y-%m-%d)
     
-    # Use sed with character classes [{}] for reliable placeholder replacement
-    # This ensures { and } are always treated as literal characters in any sed
-    # version (BRE/ERE), avoiding misinterpretation as interval expressions
-    local name
-    name=$(echo "${template}" | sed "s/[{]version[}]/${version}/g")
-    name=$(echo "${name}" | sed "s/[{]tag[}]/${tag}/g")
-    name=$(echo "${name}" | sed "s/[{]date[}]/${date}/g")
+    # Use pure bash string replacement to avoid all sed cross-platform issues
+    # with brace interpretation (BRE/ERE interval expressions)
+    local name="${template}"
+    name="${name//\{version\}/${version}}"
+    name="${name//\{tag\}/${tag}}"
+    name="${name//\{date\}/${date}}"
     
     echo "${name}"
 }
