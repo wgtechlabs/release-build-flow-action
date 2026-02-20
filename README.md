@@ -507,7 +507,7 @@ jobs:
 
 ### Example 6: Triggering Downstream Workflows
 
-If you need a GitHub Release to trigger other workflows (e.g., a container build workflow that listens for `release: [published]`), you must use a **PAT or GitHub App token** instead of the default `GITHUB_TOKEN`. Releases created with `GITHUB_TOKEN` will not fire `release` events in subsequent workflow runs due to a [GitHub platform limitation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow).
+If you need a GitHub Release to trigger other workflows (e.g., a container build workflow that listens for `release: [published]`), you must use a **PAT or GitHub App token** instead of the default `GITHUB_TOKEN`. Releases created with `GITHUB_TOKEN` will not trigger workflows listening on `release` events (i.e., will not start downstream workflow runs) due to a [GitHub platform limitation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow).
 
 ```yaml
 name: Release
