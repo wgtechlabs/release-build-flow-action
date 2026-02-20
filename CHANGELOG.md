@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.2] - 2026-02-20
+
+### Changed
+
+- fix local used outside function in detect-version-bump.sh line 410 (#19)
+- add funding file
+- add contributing file
+- add clean commit convention in this project
+
 ## [1.2.1] - 2026-02-20
 
 ### Changed
