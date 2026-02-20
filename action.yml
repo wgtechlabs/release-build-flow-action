@@ -118,9 +118,9 @@ inputs:
     default: 'false'
   
   release-name-template:
-    description: 'Template for release name (supports {version}, {date})'
+    description: 'Template for release name (supports {tag}, {version}, {date})'
     required: false
-    default: 'Release {version}'
+    default: '{tag}'
   
   # Git Configuration
   git-user-name:
