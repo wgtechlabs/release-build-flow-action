@@ -560,7 +560,7 @@ jobs:
           # Use a PAT or GitHub App token so the resulting release
           # event triggers downstream workflows (e.g., container builds).
           # GITHUB_TOKEN cannot trigger new workflow runs.
-          github-token: ${{ secrets.PAT_TOKEN }}
+          github-token: ${{ secrets.GH_PAT }}
 ```
 
 The downstream workflow (e.g., `container-build-flow-action`) will then fire normally:
@@ -782,10 +782,35 @@ Push to main
 - name: Create Release
   uses: wgtechlabs/release-build-flow-action@v1
   with:
-    github-token: ${{ secrets.PAT_TOKEN }}  # PAT or GitHub App token
+    github-token: ${{ secrets.GH_PAT }}  # PAT or GitHub App token
 ```
 
 > **Note:** GitHub App tokens are the recommended approach for production use—they provide fine-grained permissions, are auditable, and don't depend on an individual user's account. See [Example 6](#example-6-triggering-downstream-workflows) for a full setup.
+
+### Creating a Personal Access Token (PAT)
+
+If you choose to use a PAT instead of a GitHub App token, create a **fine-grained personal access token** with the following **minimum repository permissions**:
+
+| Permission | Access | Why it's needed |
+|------------|--------|------------------|
+| **Contents** | **Read and write** | Push commits (changelog updates), create tags, create releases, and read repository contents |
+| **Metadata** | **Read-only** *(required)* | Access repository metadata (automatically included) |
+
+**Steps:**
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens](https://github.com/settings/personal-access-tokens/new)
+2. Set a descriptive **Token name** (e.g., `release-build-flow`)
+3. Choose an **Expiration** period
+4. Under **Repository access**, select the repositories that use this action
+5. Under **Permissions → Repository permissions**, grant:
+   - **Contents**: Read and write
+   - **Metadata**: Read-only (selected by default)
+6. Click **Generate token** and copy it
+7. Add the token as a repository secret named `GH_PAT`:
+   - Go to your repository → **Settings → Secrets and variables → Actions**
+   - Click **New repository secret**, name it `GH_PAT`, and paste the token
+
+> **Tip:** For organization repositories, an admin may need to approve fine-grained PAT requests depending on the organization's token policy.
 
 ---
 
