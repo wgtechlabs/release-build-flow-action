@@ -44,6 +44,38 @@ MONOREPO="${MONOREPO:-false}"
 CHANGELOG_PATH="${CHANGELOG_PATH:-./CHANGELOG.md}"
 VERSION_TAG="${VERSION_TAG:-}"
 WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
+COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+# Format commit message based on chosen convention
+format_commit_message() {
+    local type="$1"
+    local description="$2"
+    
+    if [[ "${COMMIT_CONVENTION}" == "clean-commit" ]]; then
+        # Clean Commit: <emoji> <type>: <description>
+        local emoji=""
+        case "${type}" in
+            chore) emoji="☕" ;;
+            new)   emoji="📦" ;;
+            update) emoji="🔧" ;;
+            remove) emoji="🗑️" ;;
+            security) emoji="🔒" ;;
+            setup) emoji="⚙️" ;;
+            test)  emoji="🧪" ;;
+            docs)  emoji="📖" ;;
+            release) emoji="🚀" ;;
+            *) emoji="☕" ;;
+        esac
+        echo "${emoji} ${type}: ${description}"
+    else
+        # Conventional Commits: <type>: <description>
+        echo "${type}: ${description}"
+    fi
+}
 
 # =============================================================================
 # MAIN LOGIC
@@ -56,6 +88,8 @@ if [[ -z "$(git status --porcelain)" ]]; then
     log_info "No changelog changes to commit"
     exit 0
 fi
+
+log_info "Using ${COMMIT_CONVENTION} commit convention"
 
 # Add changelog files
 if [[ "${MONOREPO}" == "true" ]]; then
@@ -75,11 +109,13 @@ if [[ "${MONOREPO}" == "true" ]]; then
         done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
     fi
     
-    git commit -m "chore: update changelogs for ${VERSION_TAG}"
+    COMMIT_MSG=$(format_commit_message "chore" "update changelogs for ${VERSION_TAG}")
+    git commit -m "${COMMIT_MSG}"
 else
     log_info "Committing changelog..."
     git add "${CHANGELOG_PATH}"
-    git commit -m "chore: update CHANGELOG.md for ${VERSION_TAG}"
+    COMMIT_MSG=$(format_commit_message "chore" "update CHANGELOG.md for ${VERSION_TAG}")
+    git commit -m "${COMMIT_MSG}"
 fi
 
 git push
