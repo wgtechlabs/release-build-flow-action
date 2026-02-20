@@ -64,7 +64,7 @@ detect_package_manager() {
         return
     fi
     
-    if [[ -f "bun.lockb" ]]; then
+    if [[ -f "bun.lockb" ]] || [[ -f "bun.lock" ]]; then
         echo "bun"
     elif [[ -f "pnpm-lock.yaml" ]]; then
         echo "pnpm"
