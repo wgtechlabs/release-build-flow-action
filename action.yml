@@ -396,6 +396,9 @@ runs:
         VERSION: ${{ steps.detect-version.outputs.version }}
         SYNC_VERSION_FILES: ${{ inputs.sync-version-files }}
         VERSION_FILE_PATHS: ${{ inputs.version-file-paths }}
+        MONOREPO: ${{ inputs.monorepo }}
+        PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        UNIFIED_VERSION: ${{ inputs.unified-version }}
     
     - name: Commit Changelog
       if: inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
