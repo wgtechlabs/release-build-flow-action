@@ -407,7 +407,7 @@ else
         # Strip leading emoji and whitespace before parsing
         # Use bash parameter expansion instead of sed to avoid binary-file detection
         # issues with 4-byte UTF-8 emoji sequences
-        local prefix="${subject%%[a-zA-Z]*}"
+        prefix="${subject%%[a-zA-Z]*}"
         cleaned_subject="${subject#"$prefix"}"
         
         # Extract scope from conventional commit
