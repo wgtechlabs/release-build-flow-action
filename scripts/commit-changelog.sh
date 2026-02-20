@@ -48,6 +48,15 @@ COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
 SYNC_VERSION_FILES="${SYNC_VERSION_FILES:-false}"
 VERSION_FILE_PATHS="${VERSION_FILE_PATHS:-}"
 
+# Validate WORKSPACE_PACKAGES format
+if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+    WP_FIRST_TYPE=$(echo "${WORKSPACE_PACKAGES}" | jq -r '.[0] | type' 2>/dev/null || echo "invalid")
+    if [[ "${WP_FIRST_TYPE}" != "object" ]]; then
+        log_warning "WORKSPACE_PACKAGES has '${WP_FIRST_TYPE}' elements instead of objects - treating as empty"
+        WORKSPACE_PACKAGES="[]"
+    fi
+fi
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
