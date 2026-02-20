@@ -60,7 +60,12 @@ escape_json_string() {
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 VERSION="${VERSION:-}"
 VERSION_TAG="${VERSION_TAG:-}"
-RELEASE_NAME_TEMPLATE="${RELEASE_NAME_TEMPLATE:-{tag}}"
+# Note: Do NOT use {tag} as a default inside ${...:-} — bash interprets the }
+# inside {tag} as closing the parameter expansion, causing a stray } in output.
+RELEASE_NAME_TEMPLATE="${RELEASE_NAME_TEMPLATE:-}"
+if [[ -z "${RELEASE_NAME_TEMPLATE}" ]]; then
+    RELEASE_NAME_TEMPLATE='{tag}'
+fi
 RELEASE_DRAFT="${RELEASE_DRAFT:-false}"
 RELEASE_PRERELEASE="${RELEASE_PRERELEASE:-false}"
 CHANGELOG_ENTRY="${CHANGELOG_ENTRY:-}"
