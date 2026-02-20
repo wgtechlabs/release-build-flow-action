@@ -186,7 +186,7 @@ jobs:
 |-------|-------------|---------|
 | `major-keywords` | Keywords that trigger major version bump | `BREAKING CHANGE,BREAKING-CHANGE,breaking` |
 | `minor-keywords` | Keywords that trigger minor version bump | `feat,new,add` |
-| `patch-keywords` | Keywords that trigger patch version bump | `fix,bugfix,security,perf` |
+| `patch-keywords` | Keywords that trigger patch version bump | `fix,bugfix,security,perf,update,change,chore,setup,remove,delete,deprecate` |
 
 ### Release Configuration
 
