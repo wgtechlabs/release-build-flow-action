@@ -127,12 +127,12 @@ inputs:
   git-user-name:
     description: 'Git user name for commits'
     required: false
-    default: 'github-actions[bot]'
+    default: 'WG Tech Labs'
   
   git-user-email:
     description: 'Git user email for commits'
     required: false
-    default: 'github-actions[bot]@users.noreply.github.com'
+    default: '262751631+wgtechlabs-automation@users.noreply.github.com'
   
   commit-changelog:
     description: 'Commit and push changelog changes back to repository'
