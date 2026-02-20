@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.4.2] - 2026-02-20
+
+### Changed
+
+- fix monorepo mode crash with "Cannot index string with string path"
+- optimize JSON handling for commit parsing and routing
+- improve JSON handling in package information collection
+- validate WORKSPACE_PACKAGES format in version detection script
+- validate WORKSPACE_PACKAGES format in commit changelog script
+
 ## [1.4.1] - 2026-02-20
 
 ### Fixed
