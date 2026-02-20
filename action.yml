@@ -139,6 +139,17 @@ inputs:
     required: false
     default: 'true'
   
+  # Version File Sync Configuration
+  sync-version-files:
+    description: 'Automatically update version in manifest files (package.json, Cargo.toml, pyproject.toml, pubspec.yaml)'
+    required: false
+    default: 'false'
+  
+  version-file-paths:
+    description: 'Comma-separated paths to manifest files to update (auto-detected if not specified)'
+    required: false
+    default: ''
+  
   commit-convention:
     description: 'Commit message convention for auto-generated commits (clean-commit or conventional)'
     required: false
@@ -376,6 +387,16 @@ runs:
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
         PER_PACKAGE_COMMITS: ${{ steps.parse-commits.outputs.per-package-commits }}
     
+    - name: Sync Version Files
+      if: inputs.sync-version-files == 'true' && inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/sync-version-files.sh
+      env:
+        VERSION: ${{ steps.detect-version.outputs.version }}
+        SYNC_VERSION_FILES: ${{ inputs.sync-version-files }}
+        VERSION_FILE_PATHS: ${{ inputs.version-file-paths }}
+    
     - name: Commit Changelog
       if: inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
       shell: bash
@@ -390,6 +411,8 @@ runs:
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
         COMMIT_CONVENTION: ${{ inputs.commit-convention }}
+        SYNC_VERSION_FILES: ${{ inputs.sync-version-files }}
+        VERSION_FILE_PATHS: ${{ inputs.version-file-paths }}
     
     - name: Create Tag
       if: steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
