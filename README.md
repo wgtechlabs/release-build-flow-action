@@ -209,8 +209,10 @@ jobs:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `version-prefix` | Prefix for version tags (e.g., `v` for `v1.2.3`) | `v` |
-| `initial-version` | Initial version if no tags exist | `0.1.0` |
+| `initial-version` | Initial version if no tags exist (falls back to manifest file version first, then this value) | `0.1.0` |
 | `prerelease-prefix` | Prefix for prerelease versions (e.g., `beta`, `alpha`, `rc`) | `` |
+
+> **Version Resolution:** When no git tags exist, the action checks for a version in manifest files (`package.json`, `Cargo.toml`, `pyproject.toml`, `pubspec.yaml`) in priority order. If a valid SemVer version is found, it is used as the starting version. Otherwise, the `initial-version` input is used as the final fallback.
 
 ### Changelog Configuration
 
