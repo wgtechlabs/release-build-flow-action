@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+
+## [1.4.1] - 2026-02-20
+
+### Changed
+
+- monorepo mode crashes with "Cannot index string with string path" in jq 1.6+ (#21)
+
+## [1.4.0] - 2026-02-20
+
+### Added
+
+- add version detection from manifest files for version bumping
+
 ## [1.3.0] - 2026-02-20
 
 ### Added
