@@ -138,6 +138,11 @@ inputs:
     required: false
     default: 'true'
   
+  commit-convention:
+    description: 'Commit message convention for auto-generated commits (clean-commit or conventional)'
+    required: false
+    default: 'clean-commit'
+  
   # Advanced Options
   dry-run:
     description: 'Run without creating tags or releases (testing mode)'
@@ -381,6 +386,7 @@ runs:
         CHANGELOG_PATH: ${{ inputs.changelog-path }}
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        COMMIT_CONVENTION: ${{ inputs.commit-convention }}
     
     - name: Create Tag
       if: steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
@@ -394,6 +400,7 @@ runs:
         VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
         MONOREPO: ${{ inputs.monorepo }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        COMMIT_CONVENTION: ${{ inputs.commit-convention }}
     
     - name: Create Release
       id: create-release
