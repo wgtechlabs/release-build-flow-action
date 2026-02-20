@@ -61,9 +61,20 @@ log_debug() {
 VERSION_PREFIX="${VERSION_PREFIX:-v}"
 INITIAL_VERSION="${INITIAL_VERSION:-0.1.0}"
 PRERELEASE_PREFIX="${PRERELEASE_PREFIX:-}"
-MAJOR_KEYWORDS="${MAJOR_KEYWORDS:-BREAKING CHANGE,BREAKING-CHANGE,breaking}"
-MINOR_KEYWORDS="${MINOR_KEYWORDS:-feat,new,add}"
-PATCH_KEYWORDS="${PATCH_KEYWORDS:-fix,bugfix,security,perf}"
+COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
+
+# Convention-aware defaults for version bump keywords
+# User-provided values take priority; these only apply when using defaults
+if [[ "${COMMIT_CONVENTION}" == "conventional" ]]; then
+    MAJOR_KEYWORDS="${MAJOR_KEYWORDS:-BREAKING CHANGE,BREAKING-CHANGE,breaking}"
+    MINOR_KEYWORDS="${MINOR_KEYWORDS:-feat}"
+    PATCH_KEYWORDS="${PATCH_KEYWORDS:-fix,perf,revert}"
+else
+    MAJOR_KEYWORDS="${MAJOR_KEYWORDS:-BREAKING CHANGE,BREAKING-CHANGE,breaking}"
+    MINOR_KEYWORDS="${MINOR_KEYWORDS:-feat,new,add}"
+    PATCH_KEYWORDS="${PATCH_KEYWORDS:-fix,bugfix,security,perf,update,remove}"
+fi
+
 FETCH_DEPTH="${FETCH_DEPTH:-0}"
 INCLUDE_ALL_COMMITS="${INCLUDE_ALL_COMMITS:-false}"
 
