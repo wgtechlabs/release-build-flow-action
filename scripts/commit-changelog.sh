@@ -112,6 +112,19 @@ stage_version_files() {
             log_info "Staged version file: ${file}"
         fi
     done
+
+    # In monorepo mode, also stage per-package manifest files
+    if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+        local manifest_names=("package.json" "Cargo.toml" "pyproject.toml" "pubspec.yaml")
+        while IFS= read -r pkg_path; do
+            for manifest in "${manifest_names[@]}"; do
+                if [[ -f "${pkg_path}/${manifest}" ]]; then
+                    git add "${pkg_path}/${manifest}"
+                    log_info "Staged version file: ${pkg_path}/${manifest}"
+                fi
+            done
+        done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+    fi
 }
 
 # =============================================================================
