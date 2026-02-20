@@ -505,6 +505,45 @@ jobs:
       }'
 ```
 
+### Example 6: Triggering Downstream Workflows
+
+If you need a GitHub Release to trigger other workflows (e.g., a container build workflow that listens for `release: [published]`), you must use a **PAT or GitHub App token** instead of the default `GITHUB_TOKEN`. Releases created with `GITHUB_TOKEN` will not fire `release` events in subsequent workflow runs due to a [GitHub platform limitation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow).
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Release
+        id: release
+        uses: wgtechlabs/release-build-flow-action@v1
+        with:
+          # Use a PAT or GitHub App token so the resulting release
+          # event triggers downstream workflows (e.g., container builds).
+          # GITHUB_TOKEN cannot trigger new workflow runs.
+          github-token: ${{ secrets.PAT_TOKEN }}
+```
+
+The downstream workflow (e.g., `container-build-flow-action`) will then fire normally:
+
+```yaml
+# .github/workflows/container.yml
+on:
+  release:
+    types: [published]  # ✅ Triggered when PAT/App token creates the release
+```
+
 ---
 
 ## 📚 Conventional Commit Examples
@@ -695,6 +734,30 @@ permissions:
 - Always use scoped commits: `fix(core): bug description`
 - Set `change-detection: scope` to only use scope-based routing
 - Use `unified-version: true` if you want all packages to share one version
+
+### Downstream workflows not triggered after release
+
+**Cause:** GitHub releases created with the default `${{ secrets.GITHUB_TOKEN }}` [do not trigger other workflows](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow) in the same repository. This is an intentional GitHub platform limitation to prevent accidental recursive workflow runs.
+
+This affects chained automation such as:
+
+```
+Push to main
+  → release-build-flow-action creates GitHub Release
+  → container-build-flow-action watches release: [published]
+  → ❌ Never triggered because GITHUB_TOKEN created the release
+```
+
+**Solution:** Use a Personal Access Token (PAT) or a [GitHub App token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow) instead of `GITHUB_TOKEN`:
+
+```yaml
+- name: Create Release
+  uses: wgtechlabs/release-build-flow-action@v1
+  with:
+    github-token: ${{ secrets.PAT_TOKEN }}  # PAT or GitHub App token
+```
+
+> **Note:** GitHub App tokens are the recommended approach for production use—they provide fine-grained permissions, are auditable, and don't depend on an individual user's account. See [Example 6](#example-6-triggering-downstream-workflows) for a full setup.
 
 ---
 
