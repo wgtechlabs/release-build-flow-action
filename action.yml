@@ -143,7 +143,7 @@ inputs:
   sync-version-files:
     description: 'Automatically update version in manifest files (package.json, Cargo.toml, pyproject.toml, pubspec.yaml)'
     required: false
-    default: 'false'
+    default: 'true'
   
   version-file-paths:
     description: 'Comma-separated paths to manifest files to update (auto-detected if not specified)'
