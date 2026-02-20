@@ -16,6 +16,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.3.0] - 2026-02-20
+
+### Added
+
+- add script to run all tests with summary output
+
+### Changed
+
+- stage only modified per-package manifest files in monorepo mode
+- optimize package data extraction in sync_monorepo_packages
+- add monorepo support for version syncing in manifest files
+- stage per-package manifest files in monorepo mode
+- add support for monorepo and unified version inputs
+- enable automatic version sync in manifest files
+
+### Removed
+
+- delete CLAUDE.md file
+
 ## [1.2.2] - 2026-02-20
 
 ### Changed
