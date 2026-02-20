@@ -2,7 +2,12 @@
 # =============================================================================
 # RUN ALL TESTS
 # =============================================================================
+# Runs all test scripts in the tests/ directory and reports overall results.
+#
 # Usage: bash run-tests.sh
+#
+# Environment Variables: (none required)
+# Outputs: Exit code 0 if all tests pass, 1 if any fail
 # =============================================================================
 
 set -euo pipefail
