@@ -63,7 +63,7 @@ INITIAL_VERSION="${INITIAL_VERSION:-0.1.0}"
 PRERELEASE_PREFIX="${PRERELEASE_PREFIX:-}"
 MAJOR_KEYWORDS="${MAJOR_KEYWORDS:-BREAKING CHANGE,BREAKING-CHANGE,breaking}"
 MINOR_KEYWORDS="${MINOR_KEYWORDS:-feat,new,add}"
-PATCH_KEYWORDS="${PATCH_KEYWORDS:-fix,bugfix,security,perf}"
+PATCH_KEYWORDS="${PATCH_KEYWORDS:-fix,bugfix,security,perf,update,change,chore,setup,remove,delete,deprecate}"
 FETCH_DEPTH="${FETCH_DEPTH:-0}"
 INCLUDE_ALL_COMMITS="${INCLUDE_ALL_COMMITS:-false}"
 
@@ -174,7 +174,10 @@ determine_bump_type() {
         done
         
         # Strip leading emoji and whitespace before parsing
-        local cleaned_subject=$(sed 's/^[^a-zA-Z]*//' <<< "${subject}")
+        # Use bash parameter expansion instead of sed to avoid binary-file detection
+        # issues with 4-byte UTF-8 emoji sequences (e.g., 📦, 🔧, 🚀)
+        local prefix="${subject%%[a-zA-Z]*}"
+        local cleaned_subject="${subject#"$prefix"}"
         
         # Extract commit type from conventional commit format
         # Allow optional whitespace before scope parentheses to support Clean Commit format
@@ -391,7 +394,10 @@ else
         affected_packages=()
         
         # Strip leading emoji and whitespace before parsing
-        cleaned_subject=$(sed 's/^[^a-zA-Z]*//' <<< "${subject}")
+        # Use bash parameter expansion instead of sed to avoid binary-file detection
+        # issues with 4-byte UTF-8 emoji sequences
+        local _prefix="${subject%%[a-zA-Z]*}"
+        cleaned_subject="${subject#"$_prefix"}"
         
         # Extract scope from conventional commit
         # Allow optional whitespace before scope parentheses to support Clean Commit format
