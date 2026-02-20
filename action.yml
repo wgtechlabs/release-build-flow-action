@@ -62,6 +62,7 @@ inputs:
         "add": "Added",
         "fix": "Fixed",
         "bugfix": "Fixed",
+        "revert": "Fixed",
         "security": "Security",
         "perf": "Changed",
         "refactor": "Changed",
@@ -78,7 +79,7 @@ inputs:
   exclude-types:
     description: 'Comma-separated list of commit types to exclude from changelog (e.g., docs,style,test)'
     required: false
-    default: 'docs,style,test,ci,build'
+    default: 'docs,style,test,ci,build,release'
   
   exclude-scopes:
     description: 'Comma-separated list of commit scopes to exclude from changelog'
@@ -99,7 +100,7 @@ inputs:
   patch-keywords:
     description: 'Comma-separated keywords that trigger patch version bump'
     required: false
-    default: 'fix,bugfix,security,perf'
+    default: 'fix,bugfix,security,perf,update,remove'
   
   # Release Configuration
   create-release:
@@ -338,6 +339,7 @@ runs:
         SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
         UNIFIED_VERSION: ${{ inputs.unified-version }}
         CASCADE_BUMPS: ${{ inputs.cascade-bumps }}
+        COMMIT_CONVENTION: ${{ inputs.commit-convention }}
     
     - name: Parse Commits
       id: parse-commits
@@ -354,6 +356,7 @@ runs:
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
         CHANGE_DETECTION: ${{ inputs.change-detection }}
         SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
+        COMMIT_CONVENTION: ${{ inputs.commit-convention }}
     
     - name: Generate Changelog
       id: generate-changelog
