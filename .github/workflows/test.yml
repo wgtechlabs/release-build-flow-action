@@ -30,3 +30,6 @@ jobs:
       
       - name: Run sync version files tests
         run: bash tests/test_sync_version_files.sh
+      
+      - name: Run per-package bump tests
+        run: bash tests/test_per_package_bump.sh
