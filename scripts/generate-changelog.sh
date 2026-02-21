@@ -227,11 +227,6 @@ log_success "Changelog entry generated successfully"
 # =============================================================================
 
 MONOREPO="${MONOREPO:-false}"
-WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
-# Load from shared file if available (avoids env var size/encoding issues with large monorepos)
-# shellcheck source=scripts/lib-workspace.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib-workspace.sh"
-load_workspace_packages
 PER_PACKAGE_CHANGELOG="${PER_PACKAGE_CHANGELOG:-true}"
 ROOT_CHANGELOG="${ROOT_CHANGELOG:-true}"
 PACKAGES_DATA="${PACKAGES_DATA:-[]}"

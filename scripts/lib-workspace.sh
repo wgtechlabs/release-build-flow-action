@@ -22,10 +22,11 @@
 load_workspace_packages() {
     WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
     if [[ -n "${WORKSPACE_PACKAGES_FILE:-}" && -f "${WORKSPACE_PACKAGES_FILE}" ]]; then
-        local file_content
-        file_content=$(cat "${WORKSPACE_PACKAGES_FILE}")
-        if echo "${file_content}" | jq empty 2>/dev/null; then
-            WORKSPACE_PACKAGES="${file_content}"
+        if command -v jq &> /dev/null && jq empty "${WORKSPACE_PACKAGES_FILE}" 2>/dev/null; then
+            WORKSPACE_PACKAGES=$(cat "${WORKSPACE_PACKAGES_FILE}")
+        elif ! command -v jq &> /dev/null; then
+            # jq not available: read the file and trust it (validation happens later)
+            WORKSPACE_PACKAGES=$(cat "${WORKSPACE_PACKAGES_FILE}")
         else
             log_warning "Shared packages file contains invalid JSON, falling back to env var"
         fi
