@@ -300,7 +300,8 @@ fi
 
 # Write packages JSON to a shared file to avoid env var size/encoding issues
 # when passing large JSON blobs through GitHub Actions outputs and YAML expressions
-WORKSPACE_FILE="${RUNNER_TEMP}/workspace-packages.json"
+WORKSPACE_TMP_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+WORKSPACE_FILE="${WORKSPACE_TMP_DIR}/workspace-packages.json"
 if echo "${PACKAGES_JSON}" | jq '.' > "${WORKSPACE_FILE}"; then
     log_debug "Packages JSON written to ${WORKSPACE_FILE}"
 else
