@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.4.3] - 2026-02-21
+
+### Changed
+
+- use shared temp file for WORKSPACE_PACKAGES in monorepo mode (#24)
+
 ## [1.4.2] - 2026-02-20
 
 ### Changed
