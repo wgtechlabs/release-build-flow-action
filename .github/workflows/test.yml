@@ -39,3 +39,9 @@ jobs:
       
       - name: Run detect manifest version tests
         run: bash tests/test_detect_manifest_version.sh
+      
+      - name: Run workspace detection tests
+        run: bash tests/test_workspace_detection.sh
+      
+      - name: Run lib-workspace tests
+        run: bash tests/test_lib_workspace.sh
