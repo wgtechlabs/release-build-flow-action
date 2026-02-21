@@ -227,7 +227,6 @@ log_success "Changelog entry generated successfully"
 # =============================================================================
 
 MONOREPO="${MONOREPO:-false}"
-WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
 PER_PACKAGE_CHANGELOG="${PER_PACKAGE_CHANGELOG:-true}"
 ROOT_CHANGELOG="${ROOT_CHANGELOG:-true}"
 PACKAGES_DATA="${PACKAGES_DATA:-[]}"

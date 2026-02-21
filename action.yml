@@ -346,6 +346,7 @@ runs:
         INCLUDE_ALL_COMMITS: ${{ inputs.include-all-commits }}
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        WORKSPACE_PACKAGES_FILE: ${{ steps.detect-workspace.outputs.packages-file }}
         CHANGE_DETECTION: ${{ inputs.change-detection }}
         SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
         UNIFIED_VERSION: ${{ inputs.unified-version }}
@@ -365,6 +366,7 @@ runs:
         PREVIOUS_TAG: ${{ steps.detect-version.outputs.previous-tag }}
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        WORKSPACE_PACKAGES_FILE: ${{ steps.detect-workspace.outputs.packages-file }}
         CHANGE_DETECTION: ${{ inputs.change-detection }}
         SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
         COMMIT_CONVENTION: ${{ inputs.commit-convention }}
@@ -381,7 +383,6 @@ runs:
         VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
         COMMITS_JSON: ${{ steps.parse-commits.outputs.commits-json }}
         MONOREPO: ${{ inputs.monorepo }}
-        WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
         PER_PACKAGE_CHANGELOG: ${{ inputs.per-package-changelog }}
         ROOT_CHANGELOG: ${{ inputs.root-changelog }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
@@ -413,6 +414,7 @@ runs:
         CHANGELOG_PATH: ${{ inputs.changelog-path }}
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        WORKSPACE_PACKAGES_FILE: ${{ steps.detect-workspace.outputs.packages-file }}
         COMMIT_CONVENTION: ${{ inputs.commit-convention }}
         SYNC_VERSION_FILES: ${{ inputs.sync-version-files }}
         VERSION_FILE_PATHS: ${{ inputs.version-file-paths }}

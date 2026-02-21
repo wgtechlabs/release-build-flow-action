@@ -317,6 +317,10 @@ fi
 
 MONOREPO="${MONOREPO:-false}"
 WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
+# Load from shared file if available (avoids env var size/encoding issues with large monorepos)
+# shellcheck source=scripts/lib-workspace.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-workspace.sh"
+load_workspace_packages
 CHANGE_DETECTION="${CHANGE_DETECTION:-both}"
 SCOPE_PACKAGE_MAPPING="${SCOPE_PACKAGE_MAPPING:-}"
 

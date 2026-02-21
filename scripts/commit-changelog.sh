@@ -44,6 +44,10 @@ MONOREPO="${MONOREPO:-false}"
 CHANGELOG_PATH="${CHANGELOG_PATH:-./CHANGELOG.md}"
 VERSION_TAG="${VERSION_TAG:-}"
 WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
+# Load from shared file if available (avoids env var size/encoding issues with large monorepos)
+# shellcheck source=scripts/lib-workspace.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-workspace.sh"
+load_workspace_packages
 COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
 SYNC_VERSION_FILES="${SYNC_VERSION_FILES:-false}"
 VERSION_FILE_PATHS="${VERSION_FILE_PATHS:-}"
