@@ -223,7 +223,7 @@ inputs:
     default: 'false'
   
   monorepo-root-release:
-    description: 'Create a unified root release (tag, GitHub Release, and root CHANGELOG.md) alongside per-package releases in monorepo mode'
+    description: 'Create a unified root release (tag and GitHub Release) alongside per-package releases in monorepo mode'
     required: false
     default: 'true'
   
