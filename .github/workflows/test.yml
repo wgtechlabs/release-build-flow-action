@@ -46,5 +46,5 @@ jobs:
       - name: Run lib-workspace tests
         run: bash tests/test_lib_workspace.sh
       
-      - name: Run per-package changelog tests
-        run: bash tests/test_per_package_changelog.sh
+      - name: Run private package filter tests
+        run: bash tests/test_private_package_filter.sh
