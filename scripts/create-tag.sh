@@ -4,6 +4,7 @@
 # =============================================================================
 # Creates git tags for releases
 # Supports both single-package and monorepo modes (per-package tags)
+# Optionally updates the major version tag (e.g., v1) to point to the release
 #
 # Environment Variables:
 #   - GITHUB_TOKEN
@@ -12,6 +13,8 @@
 #   - VERSION_TAG
 #   - MONOREPO
 #   - PACKAGES_DATA (JSON array of package data with tags)
+#   - UPDATE_MAJOR_TAG (true/false - update major version tag)
+#   - VERSION_PREFIX (version prefix, e.g., v)
 # =============================================================================
 
 set -euo pipefail
@@ -31,6 +34,14 @@ log_success() {
     echo -e "${GREEN}✅ $1${NC}" >&2
 }
 
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}" >&2
+}
+
+log_error() {
+    echo -e "${RED}❌ $1${NC}" >&2
+}
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -39,6 +50,8 @@ MONOREPO="${MONOREPO:-false}"
 VERSION_TAG="${VERSION_TAG:-}"
 PACKAGES_DATA="${PACKAGES_DATA:-[]}"
 COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
+UPDATE_MAJOR_TAG="${UPDATE_MAJOR_TAG:-false}"
+VERSION_PREFIX="${VERSION_PREFIX:-v}"
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -52,6 +65,20 @@ format_tag_message() {
         echo "🚀 release: ${tag}"
     else
         echo "Release ${tag}"
+    fi
+}
+
+# Extract major version tag from a semver tag
+# e.g., v1.2.3 -> v1, release-2.3.4 -> release-2
+extract_major_tag() {
+    local tag="$1"
+    
+    if [[ "${tag}" =~ ^([^0-9]*)([0-9]+)\.[0-9]+\.[0-9]+(.*)$ ]]; then
+        local prefix="${BASH_REMATCH[1]}"
+        local major="${BASH_REMATCH[2]}"
+        echo "${prefix}${major}"
+    else
+        echo ""
     fi
 }
 
@@ -90,3 +117,33 @@ else
     git push origin "${VERSION_TAG}"
     log_success "Tag created successfully"
 fi
+
+# =============================================================================
+# UPDATE MAJOR VERSION TAG
+# =============================================================================
+# Standard practice for GitHub Actions: maintain a floating major version tag
+# (e.g., v1) that points to the latest release within that major version.
+# This allows consumers to use @v1 to automatically get bug fixes and
+# non-breaking updates without changing their workflow files.
+# =============================================================================
+
+MAJOR_TAG=""
+
+if [[ "${UPDATE_MAJOR_TAG}" == "true" ]]; then
+    log_info "Updating major version tag..."
+    
+    MAJOR_TAG=$(extract_major_tag "${VERSION_TAG}")
+    
+    if [[ -n "${MAJOR_TAG}" ]]; then
+        log_info "Updating ${MAJOR_TAG} to point to ${VERSION_TAG}"
+        git tag -f "${MAJOR_TAG}" "${VERSION_TAG}"
+        git push -f origin "${MAJOR_TAG}"
+        log_success "Major version tag ${MAJOR_TAG} updated to ${VERSION_TAG}"
+    else
+        log_warning "Cannot extract major version from tag: ${VERSION_TAG}"
+        log_warning "Expected format: <prefix>X.Y.Z (e.g., v1.2.3)"
+    fi
+fi
+
+# Output the major tag for downstream steps
+echo "major-tag=${MAJOR_TAG}" >> "$GITHUB_OUTPUT"
