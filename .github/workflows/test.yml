@@ -48,3 +48,6 @@ jobs:
       
       - name: Run private package filter tests
         run: bash tests/test_private_package_filter.sh
+      
+      - name: Run monorepo root release tests
+        run: bash tests/test_monorepo_root_release.sh

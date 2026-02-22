@@ -177,9 +177,10 @@ EOF
 MONOREPO="${MONOREPO:-false}"
 PACKAGES_DATA="${PACKAGES_DATA:-[]}"
 PER_PACKAGE_CHANGELOGS="${PER_PACKAGE_CHANGELOGS:-}"
+MONOREPO_ROOT_RELEASE="${MONOREPO_ROOT_RELEASE:-true}"
 
-# Check if we're in monorepo mode - if so, skip root release creation
-if [[ "${MONOREPO}" == "true" ]]; then
+# Check if we should skip root release (monorepo mode without root release enabled)
+if [[ "${MONOREPO}" == "true" ]] && [[ "${MONOREPO_ROOT_RELEASE}" != "true" ]]; then
     log_info "Monorepo mode enabled - skipping root release, will create per-package releases"
     
     # Set outputs for root release (not created in monorepo mode)
@@ -188,7 +189,7 @@ if [[ "${MONOREPO}" == "true" ]]; then
     echo "release-url=" >> $GITHUB_OUTPUT
     echo "release-upload-url=" >> $GITHUB_OUTPUT
 else
-    # Single-package mode: create root release as normal
+    # Single-package mode OR monorepo with root release enabled: create root release
     log_info "Creating GitHub Release for ${VERSION_TAG}..."
     
     # Validate required inputs
@@ -249,8 +250,10 @@ else
         exit 1
     fi
     
-    # Exit for single-package mode
-    exit 0
+    # Exit for single-package mode; monorepo continues to per-package releases
+    if [[ "${MONOREPO}" != "true" ]]; then
+        exit 0
+    fi
 fi
 
 # =============================================================================
