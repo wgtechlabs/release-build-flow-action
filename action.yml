@@ -166,6 +166,11 @@ inputs:
     required: false
     default: 'false'
   
+  update-major-tag:
+    description: 'Automatically update the major version tag (e.g., v1) to point to the latest release tag. Standard practice for GitHub Actions.'
+    required: false
+    default: 'false'
+  
   fetch-depth:
     description: 'Number of commits to fetch for changelog (0 for all)'
     required: false
@@ -295,6 +300,11 @@ outputs:
     description: 'Number of Security fixes'
     value: ${{ steps.generate-outputs.outputs.security-count }}
   
+  # Tag Outputs
+  major-tag:
+    description: 'The major version tag that was updated (e.g., v1). Empty if update-major-tag is disabled.'
+    value: ${{ steps.generate-outputs.outputs.major-tag }}
+  
   # Monorepo Outputs
   packages-updated:
     description: 'JSON array of packages that were updated (in monorepo mode)'
@@ -420,6 +430,7 @@ runs:
         VERSION_FILE_PATHS: ${{ inputs.version-file-paths }}
     
     - name: Create Tag
+      id: create-tag
       if: steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
       shell: bash
       run: |
@@ -432,6 +443,8 @@ runs:
         MONOREPO: ${{ inputs.monorepo }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
         COMMIT_CONVENTION: ${{ inputs.commit-convention }}
+        UPDATE_MAJOR_TAG: ${{ inputs.update-major-tag }}
+        VERSION_PREFIX: ${{ inputs.version-prefix }}
     
     - name: Create Release
       id: create-release
@@ -475,3 +488,5 @@ runs:
         RELEASE_CREATED: ${{ steps.create-release.outputs.created }}
         MONOREPO: ${{ inputs.monorepo }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        UPDATE_MAJOR_TAG: ${{ inputs.update-major-tag }}
+        MAJOR_TAG: ${{ steps.create-tag.outputs.major-tag }}
