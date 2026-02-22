@@ -268,6 +268,7 @@ jobs:
 |-------|-------------|---------|
 | `dry-run` | Run without creating tags or releases (testing mode) | `false` |
 | `tag-only` | Only create tag without GitHub Release | `false` |
+| `update-major-tag` | Automatically update major version tag (e.g., `v1`) to point to latest release. Standard practice for GitHub Actions. | `false` |
 | `fetch-depth` | Number of commits to fetch for changelog (0 for all) | `0` |
 | `include-all-commits` | Include all commits in changelog, not just since last tag | `false` |
 
@@ -419,6 +420,12 @@ Each package in `packages-updated` includes:
 | `release-id` | GitHub Release ID |
 | `release-url` | GitHub Release URL |
 | `release-upload-url` | GitHub Release upload URL for assets |
+
+### Tag Outputs
+
+| Output | Description |
+|--------|-------------|
+| `major-tag` | The major version tag that was updated (e.g., `v1`). Empty if `update-major-tag` is disabled. |
 
 ### Changelog Outputs
 
