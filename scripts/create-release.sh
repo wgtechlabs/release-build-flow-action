@@ -38,6 +38,10 @@ log_success() {
     echo -e "${GREEN}✅ $1${NC}" >&2
 }
 
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}" >&2
+}
+
 log_error() {
     echo -e "${RED}❌ $1${NC}" >&2
 }
