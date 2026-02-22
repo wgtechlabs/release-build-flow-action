@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.6.0] - 2026-02-22
+
+### Added
+
+- support unified root release, tag, and changelog in monorepo mode (#30)
+
 ## [1.5.2] - 2026-02-22
 
 ### Changed
