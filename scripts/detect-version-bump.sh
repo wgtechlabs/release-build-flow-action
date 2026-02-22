@@ -483,7 +483,7 @@ get_packages_from_files() {
         [[ -z "${file}" ]] && continue
         
         # Find which package this file belongs to
-        local pkg_path=$(jq -r --arg file "${file}" '.[] | objects | select(($file == .path) or ($file | startswith(.path + "/"))) | .path' "${WORKSPACE_TMPFILE}" | head -1)
+        local pkg_path=$(jq -r --arg file "${file}" '.[] | objects | select(.path as $p | ($file == $p) or ($file | startswith($p + "/"))) | .path' "${WORKSPACE_TMPFILE}" | head -1)
         if [[ -n "${pkg_path}" ]]; then
             packages+=("${pkg_path}")
         fi
