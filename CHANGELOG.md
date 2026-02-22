@@ -21,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.4.4] - 2026-02-22
+
+### Changed
+
+- refine package path selection logic in parse-commits script
+- improve package path selection logic in version bump script
+- enhance WORKSPACE_PACKAGES validation for object elements
+- enhance WORKSPACE_PACKAGES validation and use temp file for jq
+- validate WORKSPACE_PACKAGES for object elements only
+
 ## [1.4.3] - 2026-02-21
 
 ### Changed
