@@ -12,6 +12,7 @@
 #   - RELEASE_DRAFT
 #   - RELEASE_PRERELEASE
 #   - CHANGELOG_ENTRY
+#   - PER_PACKAGE_CHANGELOGS  : JSON object mapping package paths to changelog entries (monorepo)
 #
 # Outputs (via GitHub Actions):
 #   - created          : Whether release was created (true/false)
@@ -35,6 +36,10 @@ log_info() {
 
 log_success() {
     echo -e "${GREEN}✅ $1${NC}" >&2
+}
+
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}" >&2
 }
 
 log_error() {
@@ -171,6 +176,7 @@ EOF
 
 MONOREPO="${MONOREPO:-false}"
 PACKAGES_DATA="${PACKAGES_DATA:-[]}"
+PER_PACKAGE_CHANGELOGS="${PER_PACKAGE_CHANGELOGS:-}"
 
 # Check if we're in monorepo mode - if so, skip root release creation
 if [[ "${MONOREPO}" == "true" ]]; then
@@ -272,12 +278,27 @@ if command -v jq &> /dev/null && [[ "${PACKAGES_DATA}" != "[]" ]]; then
         
         # Get package changelog entry
         pkg_changelog=""
-        if [[ -f "${pkg_path}/CHANGELOG.md" ]]; then
-            # Extract the latest entry from package changelog
+        
+        # Primary: use directly generated per-package changelog entry (avoids file I/O timing issues)
+        if [[ -n "${PER_PACKAGE_CHANGELOGS}" ]] && [[ "${PER_PACKAGE_CHANGELOGS}" != "{}" ]]; then
+            pkg_changelog=$(echo "${PER_PACKAGE_CHANGELOGS}" | jq -r --arg path "${pkg_path}" '.[$path] // empty' 2>/dev/null || echo "")
+            if [[ -n "${pkg_changelog}" ]]; then
+                log_info "Using generated changelog entry for ${pkg_name}"
+            fi
+        fi
+        
+        # Fallback: read from package CHANGELOG.md file
+        if [[ -z "${pkg_changelog}" ]] && [[ -f "${pkg_path}/CHANGELOG.md" ]]; then
             pkg_changelog=$(awk '/^## \[/{if(p)exit;p=1;next}p' "${pkg_path}/CHANGELOG.md" || echo "")
+            if [[ -n "${pkg_changelog}" ]]; then
+                log_info "Using CHANGELOG.md file entry for ${pkg_name}"
+            else
+                log_warning "CHANGELOG.md exists for ${pkg_name} but no entry could be extracted"
+            fi
         fi
         
         if [[ -z "${pkg_changelog}" ]]; then
+            log_warning "No changelog content found for ${pkg_name}, using generic release message"
             pkg_changelog="Release ${pkg_tag}"
         fi
         

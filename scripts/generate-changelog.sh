@@ -11,8 +11,9 @@
 #   - COMMITS_JSON
 #
 # Outputs (via GitHub Actions):
-#   - updated         : Whether changelog was updated (true/false)
-#   - changelog-entry : Generated changelog entry for this version
+#   - updated                 : Whether changelog was updated (true/false)
+#   - changelog-entry         : Generated changelog entry for this version
+#   - per-package-changelogs  : JSON object mapping package paths to their changelog entries (monorepo)
 # =============================================================================
 
 set -euo pipefail
@@ -239,6 +240,7 @@ fi
 log_info "Generating monorepo changelogs..."
 
 # Generate per-package changelogs
+PKG_CHANGELOGS="{}"
 if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; then
     if [[ "${PACKAGES_DATA}" != "[]" ]]; then
         while IFS= read -r package; do
@@ -267,6 +269,9 @@ if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; the
             # Generate changelog entry for package
             pkg_changelog_entry=$(generate_entry "${pkg_version}" "${RELEASE_DATE}" "${pkg_commits}")
             
+            # Store generated entry for direct use by create-release step
+            PKG_CHANGELOGS=$(echo "${PKG_CHANGELOGS}" | jq -c --arg path "${pkg_path}" --arg entry "${pkg_changelog_entry}" '. + {($path): $entry}')
+            
             # Insert into package changelog
             pkg_changelog_path="${pkg_path}/CHANGELOG.md"
             insert_entry "${pkg_changelog_path}" "${pkg_changelog_entry}"
@@ -275,6 +280,9 @@ if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; the
         done < <(echo "${PACKAGES_DATA}" | jq -c '.[]')
     fi
 fi
+
+# Output per-package changelogs as compact JSON to avoid newlines in $GITHUB_OUTPUT
+echo "per-package-changelogs=${PKG_CHANGELOGS}" >> $GITHUB_OUTPUT
 
 # Generate root aggregated changelog
 if [[ "${ROOT_CHANGELOG}" == "true" ]] && [[ "${MONOREPO}" == "true" ]]; then

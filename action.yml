@@ -462,6 +462,7 @@ runs:
         CHANGELOG_ENTRY: ${{ steps.generate-changelog.outputs.changelog-entry }}
         MONOREPO: ${{ inputs.monorepo }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        PER_PACKAGE_CHANGELOGS: ${{ steps.generate-changelog.outputs.per-package-changelogs }}
     
     - name: Generate Outputs
       id: generate-outputs
