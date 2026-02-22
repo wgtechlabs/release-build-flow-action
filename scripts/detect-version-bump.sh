@@ -511,7 +511,7 @@ if [[ "${UNIFIED_VERSION}" == "true" ]]; then
     if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
         while IFS= read -r pkg_path; do
             PACKAGE_BUMPS["${pkg_path}"]="${BUMP_TYPE}"
-        done < <(jq -r '.[] | objects | .path' "${WORKSPACE_TMPFILE}")
+        done < <(jq -r '.[] | objects | select(.private != true) | .path' "${WORKSPACE_TMPFILE}")
     fi
 else
     # Determine per-package version bumps
@@ -587,7 +587,7 @@ else
                 if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
                     while IFS= read -r pkg_path; do
                         affected_packages+=("${pkg_path}")
-                    done < <(jq -r '.[] | objects | .path' "${WORKSPACE_TMPFILE}")
+                    done < <(jq -r '.[] | objects | select(.private != true) | .path' "${WORKSPACE_TMPFILE}")
                 fi
             fi
             
@@ -645,7 +645,7 @@ if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
             --arg bumpType "${bump_type}" \
             --arg tag "${pkg_tag}" \
             '{name: $name, path: $path, oldVersion: $version, version: $newVersion, bumpType: $bumpType, tag: $tag}')
-    done < <(jq -r '.[] | objects | .path' "${WORKSPACE_TMPFILE}")
+    done < <(jq -r '.[] | objects | select(.private != true) | .path' "${WORKSPACE_TMPFILE}")
 fi
 
 PACKAGES_DATA="${PACKAGES_DATA}]"
