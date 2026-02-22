@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.5.0] - 2026-02-22
+
+### Added
+
+- add update-major-tag input and major-tag output for releases
+
+### Changed
+
+- enable major tag updates in release workflow
+- add major tag output to action outputs
+- enhance create-tag script to support major version tag updates
+
 ## [1.4.4] - 2026-02-22
 
 ### Changed
