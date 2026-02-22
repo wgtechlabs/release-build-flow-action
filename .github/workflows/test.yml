@@ -45,3 +45,6 @@ jobs:
       
       - name: Run lib-workspace tests
         run: bash tests/test_lib_workspace.sh
+      
+      - name: Run private package filter tests
+        run: bash tests/test_private_package_filter.sh
