@@ -52,6 +52,7 @@ PACKAGES_DATA="${PACKAGES_DATA:-[]}"
 COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
 UPDATE_MAJOR_TAG="${UPDATE_MAJOR_TAG:-false}"
 VERSION_PREFIX="${VERSION_PREFIX:-v}"
+MONOREPO_ROOT_RELEASE="${MONOREPO_ROOT_RELEASE:-true}"
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -104,6 +105,19 @@ if [[ "${MONOREPO}" == "true" && "${PACKAGES_DATA}" != "[]" ]]; then
         done
         
         log_success "Created tags for all updated packages"
+        
+        # Also create root VERSION_TAG if monorepo-root-release is enabled
+        if [[ "${MONOREPO_ROOT_RELEASE}" == "true" ]]; then
+            if [[ -n "${VERSION_TAG}" ]]; then
+                log_info "Creating root tag: ${VERSION_TAG}"
+                TAG_MSG=$(format_tag_message "${VERSION_TAG}")
+                git tag -a "${VERSION_TAG}" -m "${TAG_MSG}"
+                git push origin "${VERSION_TAG}"
+                log_success "Root tag created: ${VERSION_TAG}"
+            else
+                log_warning "MONOREPO_ROOT_RELEASE is true but VERSION_TAG is empty; skipping root tag"
+            fi
+        fi
     else
         log_info "jq not available, creating unified tag"
         TAG_MSG=$(format_tag_message "${VERSION_TAG}")

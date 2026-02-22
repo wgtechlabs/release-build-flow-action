@@ -222,6 +222,11 @@ inputs:
     required: false
     default: 'false'
   
+  monorepo-root-release:
+    description: 'Create a unified root release (tag and GitHub Release) alongside per-package releases in monorepo mode'
+    required: false
+    default: 'true'
+  
   package-manager:
     description: 'Package manager for workspace detection (npm, bun, pnpm, yarn) - auto-detected if not specified'
     required: false
@@ -445,6 +450,7 @@ runs:
         COMMIT_CONVENTION: ${{ inputs.commit-convention }}
         UPDATE_MAJOR_TAG: ${{ inputs.update-major-tag }}
         VERSION_PREFIX: ${{ inputs.version-prefix }}
+        MONOREPO_ROOT_RELEASE: ${{ inputs.monorepo-root-release }}
     
     - name: Create Release
       id: create-release
@@ -463,6 +469,7 @@ runs:
         MONOREPO: ${{ inputs.monorepo }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
         PER_PACKAGE_CHANGELOGS: ${{ steps.generate-changelog.outputs.per-package-changelogs }}
+        MONOREPO_ROOT_RELEASE: ${{ inputs.monorepo-root-release }}
     
     - name: Generate Outputs
       id: generate-outputs

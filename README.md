@@ -282,6 +282,7 @@ jobs:
 | `scope-package-mapping` | JSON mapping of commit scopes to package paths (auto-detected if not provided) | `''` |
 | `per-package-changelog` | Generate CHANGELOG.md in each package directory | `true` |
 | `root-changelog` | Generate aggregated CHANGELOG.md at repository root | `true` |
+| `monorepo-root-release` | Create a unified root release (tag, GitHub Release) using the aggregated root CHANGELOG.md alongside per-package releases | `true` |
 | `cascade-bumps` | *(Reserved for future use)* Automatically bump packages that depend on updated packages | `false` |
 | `unified-version` | All packages share a single unified version number | `false` |
 | `package-manager` | Package manager for workspace detection (`npm`, `bun`, `pnpm`, `yarn`) - auto-detected if not specified | `''` |
@@ -317,6 +318,14 @@ When `monorepo: true` is enabled:
 5. **Per-Package Releases** - Creates GitHub releases with scoped tags:
    - `@pkg/core@1.2.0`
    - `@pkg/ui@2.0.1`
+
+6. **Unified Root Release** *(enabled by default via `monorepo-root-release: true`)* - When enabled, creates an additional root-level tag and GitHub Release alongside per-package releases:
+   - Root tag: `v2.1.0`
+   - Root GitHub Release that references:
+     - Aggregated root `CHANGELOG.md` across all packages (if `root-changelog: true`; this aggregation runs regardless of `monorepo-root-release`)
+     - Synced root version files such as `package.json` (if `sync-version-files: true`; version syncing also runs independently of `monorepo-root-release`)
+
+   This root tag and GitHub Release enable downstream workflows (e.g., container builds) that trigger on `release: types: [published]` and filter by semver tag patterns like `v1.2.3` to work correctly. Set `monorepo-root-release: false` to keep only per-package tags/releases while still optionally generating a root `CHANGELOG.md` and syncing version files via `root-changelog` and `sync-version-files`.
 
 ### Monorepo Example
 
