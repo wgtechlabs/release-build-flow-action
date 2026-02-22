@@ -399,7 +399,7 @@ if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
     pkg_valid=$(echo "${WORKSPACE_PACKAGES}" | jq -r '
         if type != "array" then "false"
         elif length == 0 then "true"
-        elif .[0] | type == "object" then "true"
+        elif all(type == "object") then "true"
         else "false"
         end
     ' 2>/dev/null || echo "false")
@@ -425,6 +425,16 @@ fi
 
 log_debug "WORKSPACE_PACKAGES (first 200 chars): ${WORKSPACE_PACKAGES:0:200}"
 
+# Write WORKSPACE_PACKAGES to a temp file for reliable jq operations
+# (avoids potential issues with echo piping large multi-line variables)
+WORKSPACE_TMPFILE=$(mktemp)
+if [[ -n "${WORKSPACE_PACKAGES_FILE:-}" && -f "${WORKSPACE_PACKAGES_FILE}" ]]; then
+    cp "${WORKSPACE_PACKAGES_FILE}" "${WORKSPACE_TMPFILE}"
+else
+    printf '%s\n' "${WORKSPACE_PACKAGES}" > "${WORKSPACE_TMPFILE}"
+fi
+trap 'rm -f "${WORKSPACE_TMPFILE}"' EXIT
+
 # Helper function to detect package from commit scope
 get_package_from_scope() {
     local scope="$1"
@@ -445,7 +455,7 @@ get_package_from_scope() {
     
     # Try to match scope with package scope from workspace packages
     if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
-        local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg scope "${scope}" '.[] | select(.scope == $scope) | .path' | head -1)
+        local pkg_path=$(jq -r --arg scope "${scope}" '.[] | objects | select(.scope == $scope) | .path' "${WORKSPACE_TMPFILE}" | head -1)
         if [[ -n "${pkg_path}" ]]; then
             echo "${pkg_path}"
             return
@@ -473,7 +483,7 @@ get_packages_from_files() {
         [[ -z "${file}" ]] && continue
         
         # Find which package this file belongs to
-        local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select(($file == .path) or ($file | startswith(.path + "/"))) | .path' | head -1)
+        local pkg_path=$(jq -r --arg file "${file}" '.[] | objects | select(($file == .path) or ($file | startswith(.path + "/"))) | .path' "${WORKSPACE_TMPFILE}" | head -1)
         if [[ -n "${pkg_path}" ]]; then
             packages+=("${pkg_path}")
         fi
@@ -501,7 +511,7 @@ if [[ "${UNIFIED_VERSION}" == "true" ]]; then
     if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
         while IFS= read -r pkg_path; do
             PACKAGE_BUMPS["${pkg_path}"]="${BUMP_TYPE}"
-        done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+        done < <(jq -r '.[] | objects | .path' "${WORKSPACE_TMPFILE}")
     fi
 else
     # Determine per-package version bumps
@@ -577,7 +587,7 @@ else
                 if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
                     while IFS= read -r pkg_path; do
                         affected_packages+=("${pkg_path}")
-                    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+                    done < <(jq -r '.[] | objects | .path' "${WORKSPACE_TMPFILE}")
                 fi
             fi
             
@@ -604,7 +614,7 @@ FIRST=true
 
 if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
     while IFS= read -r pkg_path; do
-        pkg_info=$(echo "${WORKSPACE_PACKAGES}" | jq --arg path "${pkg_path}" '.[] | select(.path == $path)')
+        pkg_info=$(jq --arg path "${pkg_path}" '.[] | objects | select(.path == $path)' "${WORKSPACE_TMPFILE}")
         pkg_name=$(echo "${pkg_info}" | jq -r '.name')
         pkg_version=$(echo "${pkg_info}" | jq -r '.version')
         bump_type="${PACKAGE_BUMPS[${pkg_path}]:-none}"
@@ -635,7 +645,7 @@ if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
             --arg bumpType "${bump_type}" \
             --arg tag "${pkg_tag}" \
             '{name: $name, path: $path, oldVersion: $version, version: $newVersion, bumpType: $bumpType, tag: $tag}')
-    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+    done < <(jq -r '.[] | objects | .path' "${WORKSPACE_TMPFILE}")
 fi
 
 PACKAGES_DATA="${PACKAGES_DATA}]"
