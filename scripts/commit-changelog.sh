@@ -54,9 +54,9 @@ VERSION_FILE_PATHS="${VERSION_FILE_PATHS:-}"
 
 # Validate WORKSPACE_PACKAGES format
 if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
-    WP_FIRST_TYPE=$(echo "${WORKSPACE_PACKAGES}" | jq -r '.[0] | type' 2>/dev/null || echo "invalid")
-    if [[ "${WP_FIRST_TYPE}" != "object" ]]; then
-        log_warning "WORKSPACE_PACKAGES has '${WP_FIRST_TYPE}' elements instead of objects - treating as empty"
+    WP_ALL_OBJECTS=$(echo "${WORKSPACE_PACKAGES}" | jq -r 'if type == "array" and all(type == "object") then "true" else "false" end' 2>/dev/null || echo "false")
+    if [[ "${WP_ALL_OBJECTS}" != "true" ]]; then
+        log_warning "WORKSPACE_PACKAGES contains non-object elements - treating as empty"
         WORKSPACE_PACKAGES="[]"
     fi
 fi
@@ -136,7 +136,7 @@ stage_version_files() {
                     log_info "Staged version file: ${pkg_path}/${manifest}"
                 fi
             done
-        done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+        done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[] | objects | .path')
     fi
 }
 
@@ -169,7 +169,7 @@ if [[ "${MONOREPO}" == "true" ]]; then
             if [[ -f "${pkg_path}/CHANGELOG.md" ]]; then
                 git add "${pkg_path}/CHANGELOG.md"
             fi
-        done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+        done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[] | objects | .path')
     fi
     
     COMMIT_MSG=$(format_commit_message "chore" "update changelogs for ${VERSION_TAG}")
