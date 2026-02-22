@@ -403,7 +403,7 @@ if [[ "${MONOREPO}" == "true" ]] && command -v jq &> /dev/null && [[ "${WORKSPAC
             while IFS= read -r file; do
                 [[ -z "${file}" ]] && continue
                 
-                pkg_path=$(jq -r --arg file "${file}" '.[] | objects | select(($file == .path) or ($file | startswith(.path + "/"))) | .path' "${WORKSPACE_TMPFILE}" | head -1)
+                pkg_path=$(jq -r --arg file "${file}" '.[] | objects | select(.path as $p | ($file == $p) or ($file | startswith($p + "/"))) | .path' "${WORKSPACE_TMPFILE}" | head -1)
                 if [[ -n "${pkg_path}" ]]; then
                     # Check if not already in array
                     local_found=false
