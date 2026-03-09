@@ -6,7 +6,6 @@
 #
 # Environment Variables (from action.yml):
 #   - MAIN_BRANCH
-#   - DEV_BRANCH
 #   - VERSION_PREFIX
 #   - INITIAL_VERSION
 # =============================================================================
@@ -32,6 +31,10 @@ log_error() {
     echo -e "${RED}❌ $1${NC}" >&2
 }
 
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}" >&2
+}
+
 # =============================================================================
 # VALIDATION
 # =============================================================================
@@ -44,8 +47,12 @@ if [[ -z "${MAIN_BRANCH:-}" ]]; then
     exit 1
 fi
 
-if [[ -z "${DEV_BRANCH:-}" ]]; then
-    log_error "dev-branch is required"
+CURRENT_BRANCH="${CURRENT_BRANCH:-${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}}"
+
+if [[ -z "${CURRENT_BRANCH}" ]]; then
+    log_warning "Current branch could not be detected; skipping production branch guard"
+elif [[ "${CURRENT_BRANCH}" != "${MAIN_BRANCH}" ]]; then
+    log_error "This action only runs on the configured production branch (${MAIN_BRANCH}). Current branch: ${CURRENT_BRANCH}"
     exit 1
 fi
 

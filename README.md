@@ -154,8 +154,7 @@ jobs:
 
 | Input | Description | Default |
 | --- | --- | --- |
-| `main-branch` | Main or production branch name | `main` |
-| `dev-branch` | Development branch name | `dev` |
+| `main-branch` | Production branch name. The action fails when the current branch does not match. | `main` |
 
 ### Version Configuration
 
@@ -514,6 +513,10 @@ Use outputs such as `version-tag`, `release-url`, `packages-updated`, and `major
 ### No version bump detected
 
 Use version-bumping commit types such as `feat`, `new`, `add`, `fix`, `bugfix`, `security`, `perf`, `update`, or `remove`.
+
+### Action failed on the wrong branch
+
+The action enforces `main-branch` as a production-branch guard. Run it on the configured branch or change `main-branch` to match your production branch.
 
 ### Changelog not updating
 
