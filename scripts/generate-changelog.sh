@@ -59,10 +59,14 @@ check_jq() {
 CHANGELOG_PATH="${CHANGELOG_PATH:-./CHANGELOG.md}"
 VERSION="${VERSION:-}"
 VERSION_TAG="${VERSION_TAG:-}"
+VERSION_BUMP_TYPE="${VERSION_BUMP_TYPE:-none}"
 COMMITS_JSON="${COMMITS_JSON:-[]}"
+COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
 
 # Current date in YYYY-MM-DD format
 RELEASE_DATE=$(date +%Y-%m-%d)
+
+NON_RELEASE_CLEAN_TYPES='["setup", "chore", "test", "docs", "release"]'
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -87,21 +91,17 @@ EOF
     log_info "Created initial changelog: ${file}"
 }
 
-# Generate changelog entry for a version
-generate_entry() {
-    local version="$1"
-    local date="$2"
-    local commits_json="$3"
-    
-    # Start entry
-    local entry="## [${version}] - ${date}"
-    
+# Generate grouped changelog body
+generate_sections_body() {
+    local commits_json="$1"
+    local body=""
+
     # Group commits by section
     local sections=("Added" "Changed" "Deprecated" "Removed" "Fixed" "Security")
-    
+
     for section in "${sections[@]}"; do
         local items=""
-        
+
         # Extract items for this section
         if command -v jq &> /dev/null; then
             items=$(echo "${commits_json}" | jq -r --arg sec "${section}" '
@@ -118,14 +118,106 @@ generate_entry() {
                 items=""
             fi
         fi
-        
+
         # Add section if it has items
         if [[ -n "${items}" ]]; then
-            entry="${entry}\n\n### ${section}\n\n${items}"
+            if [[ -n "${body}" ]]; then
+                body="${body}\n\n### ${section}\n\n${items}"
+            else
+                body="### ${section}\n\n${items}"
+            fi
         fi
     done
-    
+
+    echo -e "${body}"
+}
+
+# Generate changelog entry for a version
+generate_entry() {
+    local version="$1"
+    local date="$2"
+    local commits_json="$3"
+    local body=""
+
+    body=$(generate_sections_body "${commits_json}")
+
+    # Start entry
+    local entry="## [${version}] - ${date}"
+    if [[ -n "${body}" ]]; then
+        entry="${entry}\n\n${body}"
+    fi
+
     echo -e "${entry}"
+}
+
+filter_non_release_clean_commits() {
+    local commits_json="$1"
+
+    if ! command -v jq &> /dev/null; then
+        log_warning "jq is required to filter non-release-trigger Clean Commit types"
+        echo "[]"
+        return
+    fi
+
+    echo "${commits_json}" | jq -c --argjson allowed "${NON_RELEASE_CLEAN_TYPES}" '
+        [.[] | select(.type as $type | $allowed | index($type))]
+    '
+}
+
+set_unreleased_content() {
+    local file="$1"
+    local content="$2"
+
+    if [[ ! -f "${file}" ]]; then
+        create_initial_changelog "${file}"
+    fi
+
+    local unreleased_line
+    unreleased_line=$(grep -n "## \[Unreleased\]" "${file}" | cut -d: -f1 | head -n 1)
+
+    if [[ -z "${unreleased_line}" ]]; then
+        log_error "Could not find [Unreleased] section in ${file}"
+        exit 1
+    fi
+
+    local total_lines
+    total_lines=$(wc -l < "${file}")
+    local next_header_line=$((total_lines + 1))
+    local line_num=$((unreleased_line + 1))
+
+    while [[ ${line_num} -le ${total_lines} ]]; do
+        local line
+        line=$(sed -n "${line_num}p" "${file}")
+        if [[ "${line}" =~ ^##\ \[.*\] ]]; then
+            next_header_line=${line_num}
+            break
+        fi
+        line_num=$((line_num + 1))
+    done
+
+    local temp_file
+    temp_file=$(mktemp)
+
+    head -n "${unreleased_line}" "${file}" > "${temp_file}"
+    echo "" >> "${temp_file}"
+
+    if [[ -n "${content}" ]]; then
+        echo -e "${content}" >> "${temp_file}"
+        echo "" >> "${temp_file}"
+    fi
+
+    if [[ ${next_header_line} -le ${total_lines} ]]; then
+        tail -n "+${next_header_line}" "${file}" >> "${temp_file}"
+    fi
+
+    if cmp -s "${file}" "${temp_file}"; then
+        rm -f "${temp_file}"
+        return 1
+    fi
+
+    mv "${temp_file}" "${file}"
+    log_success "Updated [Unreleased] in ${file}"
+    return 0
 }
 
 # Insert entry into changelog
@@ -194,7 +286,11 @@ insert_entry() {
 # MAIN LOGIC
 # =============================================================================
 
-log_info "Generating changelog entry for ${VERSION}..."
+if [[ "${VERSION_BUMP_TYPE}" == "none" ]]; then
+    log_info "Evaluating [Unreleased] changelog updates..."
+else
+    log_info "Generating changelog entry for ${VERSION}..."
+fi
 
 # Check jq availability
 check_jq
@@ -207,8 +303,45 @@ if [[ "${COMMITS_JSON}" == "[]" ]] || [[ -z "${COMMITS_JSON}" ]]; then
     exit 0
 fi
 
+if [[ "${VERSION_BUMP_TYPE}" == "none" ]]; then
+    if [[ "${COMMIT_CONVENTION}" != "clean-commit" ]]; then
+        log_info "Skipping [Unreleased] updates for ${COMMIT_CONVENTION}"
+        echo "updated=false" >> $GITHUB_OUTPUT
+        echo "changelog-entry=" >> $GITHUB_OUTPUT
+        exit 0
+    fi
+
+    UNRELEASED_COMMITS=$(filter_non_release_clean_commits "${COMMITS_JSON}")
+    if [[ "${UNRELEASED_COMMITS}" == "[]" ]] || [[ -z "${UNRELEASED_COMMITS}" ]]; then
+        log_warning "No non-release-trigger Clean Commit changes to add to [Unreleased]"
+        echo "updated=false" >> $GITHUB_OUTPUT
+        echo "changelog-entry=" >> $GITHUB_OUTPUT
+        exit 0
+    fi
+
+    UNRELEASED_CONTENT=$(generate_sections_body "${UNRELEASED_COMMITS}")
+    if [[ -z "${UNRELEASED_CONTENT}" ]]; then
+        log_warning "No mapped changelog sections found for [Unreleased]"
+        echo "updated=false" >> $GITHUB_OUTPUT
+        echo "changelog-entry=" >> $GITHUB_OUTPUT
+        exit 0
+    fi
+
+    if set_unreleased_content "${CHANGELOG_PATH}" "${UNRELEASED_CONTENT}"; then
+        echo "updated=true" >> $GITHUB_OUTPUT
+    else
+        echo "updated=false" >> $GITHUB_OUTPUT
+    fi
+    echo "changelog-entry=" >> $GITHUB_OUTPUT
+    exit 0
+fi
+
 # Generate entry
 CHANGELOG_ENTRY=$(generate_entry "${VERSION}" "${RELEASE_DATE}" "${COMMITS_JSON}")
+
+if [[ "${COMMIT_CONVENTION}" == "clean-commit" ]]; then
+    set_unreleased_content "${CHANGELOG_PATH}" "" || true
+fi
 
 # Insert into changelog
 insert_entry "${CHANGELOG_PATH}" "${CHANGELOG_ENTRY}"

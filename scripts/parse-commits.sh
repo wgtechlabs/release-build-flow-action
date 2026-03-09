@@ -71,7 +71,7 @@ COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
 if [[ "${COMMIT_CONVENTION}" == "conventional" ]]; then
     EXCLUDE_TYPES="${EXCLUDE_TYPES:-docs,style,test,ci,build,chore}"
 else
-    EXCLUDE_TYPES="${EXCLUDE_TYPES:-docs,style,test,ci,build,release}"
+    EXCLUDE_TYPES="${EXCLUDE_TYPES:-style,ci,build}"
 fi
 
 EXCLUDE_SCOPES="${EXCLUDE_SCOPES:-}"
@@ -105,7 +105,7 @@ get_changelog_section() {
         security)
             echo "Security"
             ;;
-        perf|refactor|update|change|chore|setup)
+        perf|refactor|update|change|chore|setup|docs|test|release)
             echo "Changed"
             ;;
         deprecate)

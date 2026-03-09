@@ -154,6 +154,20 @@ fi
 
 log_info "Using ${COMMIT_CONVENTION} commit convention"
 
+if [[ -n "${VERSION_TAG}" ]]; then
+    if [[ "${MONOREPO}" == "true" ]]; then
+        COMMIT_DESCRIPTION="update changelogs for ${VERSION_TAG}"
+    else
+        COMMIT_DESCRIPTION="update CHANGELOG.md for ${VERSION_TAG}"
+    fi
+else
+    if [[ "${MONOREPO}" == "true" ]]; then
+        COMMIT_DESCRIPTION="update unreleased changelogs"
+    else
+        COMMIT_DESCRIPTION="update CHANGELOG.md [Unreleased]"
+    fi
+fi
+
 # Add changelog files
 if [[ "${MONOREPO}" == "true" ]]; then
     log_info "Committing monorepo changelogs..."
@@ -172,13 +186,13 @@ if [[ "${MONOREPO}" == "true" ]]; then
         done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[] | objects | .path')
     fi
     
-    COMMIT_MSG=$(format_commit_message "chore" "update changelogs for ${VERSION_TAG}")
+    COMMIT_MSG=$(format_commit_message "chore" "${COMMIT_DESCRIPTION}")
     stage_version_files
     git commit -m "${COMMIT_MSG}"
 else
     log_info "Committing changelog..."
     git add "${CHANGELOG_PATH}"
-    COMMIT_MSG=$(format_commit_message "chore" "update CHANGELOG.md for ${VERSION_TAG}")
+    COMMIT_MSG=$(format_commit_message "chore" "${COMMIT_DESCRIPTION}")
     stage_version_files
     git commit -m "${COMMIT_MSG}"
 fi
