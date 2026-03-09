@@ -197,6 +197,47 @@ run_test "Monorepo no-release run skips package without non-release-trigger comm
 run_test "Monorepo no-release run still reports updated=true from package changelog changes" \
     grep -Fq "updated=true" "${monorepo_output}"
 
+monorepo_disabled_root_changelog="${tmp_dir}/MONOREPO_DISABLED_CHANGELOG.md"
+monorepo_disabled_pkg_a_changelog="${monorepo_dir}/pkg-a/CHANGELOG-disabled.md"
+monorepo_disabled_output="${tmp_dir}/monorepo-disabled-output.txt"
+
+mkdir -p "${monorepo_dir}/pkg-a-disabled" "${monorepo_dir}/pkg-b-disabled"
+
+monorepo_packages_disabled='[
+    {"name":"pkg-a","path":"TMP_PACKAGES/pkg-a-disabled","oldVersion":"1.2.0","version":"1.3.0","bumpType":"minor","tag":"pkg-a@1.3.0"},
+    {"name":"pkg-b","path":"TMP_PACKAGES/pkg-b-disabled","oldVersion":"2.0.0","version":"2.0.0","bumpType":"none","tag":""}
+]'
+
+monorepo_per_package_disabled='{
+    "TMP_PACKAGES/pkg-a-disabled": [
+        {"type":"docs","section":"Changed","description":"document disabled package behavior"}
+    ]
+}'
+
+monorepo_packages_disabled_resolved="${monorepo_packages_disabled//TMP_PACKAGES/${monorepo_dir}}"
+monorepo_per_package_disabled_resolved="${monorepo_per_package_disabled//TMP_PACKAGES/${monorepo_dir}}"
+
+run_generate_monorepo \
+    "${monorepo_disabled_root_changelog}" \
+    "${monorepo_disabled_output}" \
+    "1.3.0" \
+    "v1.3.0" \
+    "none" \
+    "${non_release_commits}" \
+    "${monorepo_packages_disabled_resolved}" \
+    "${monorepo_per_package_disabled_resolved}" \
+    "false" \
+    "false"
+
+run_test "Monorepo no-release run with both changelog outputs disabled leaves root untouched" \
+    test ! -f "${monorepo_disabled_root_changelog}"
+
+run_test "Monorepo no-release run with per-package-changelog=false leaves package changelogs untouched" \
+    test ! -f "${monorepo_dir}/pkg-a-disabled/CHANGELOG.md"
+
+run_test "Monorepo no-release run with both changelog outputs disabled reports updated=false" \
+    grep -Fq "updated=false" "${monorepo_disabled_output}"
+
 : > "${monorepo_output}"
 run_generate_monorepo \
     "${monorepo_root_changelog}" \
