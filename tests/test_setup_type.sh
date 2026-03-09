@@ -35,7 +35,10 @@ export COMMIT_TYPE_MAPPING='{
   "bugfix": "Fixed",
   "security": "Security",
   "perf": "Changed",
+    "style": "Changed",
   "refactor": "Changed",
+    "build": "Changed",
+    "ci": "Changed",
   "update": "Changed",
   "change": "Changed",
   "chore": "Changed",
@@ -47,6 +50,7 @@ export COMMIT_TYPE_MAPPING='{
   "remove": "Removed",
   "delete": "Removed"
 }'
+export COMMIT_CONVENTION='clean-commit'
 
 eval "${get_changelog_section_definition}"
 
@@ -106,6 +110,18 @@ run_test "chore maps to Changed" \
 
 run_test "docs maps to Changed" \
     "docs" \
+    "Changed"
+
+run_test "style maps to Changed" \
+    "style" \
+    "Changed"
+
+run_test "build maps to Changed" \
+    "build" \
+    "Changed"
+
+run_test "ci maps to Changed" \
+    "ci" \
     "Changed"
 
 run_test "test maps to Changed" \

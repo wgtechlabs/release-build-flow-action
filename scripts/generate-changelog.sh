@@ -67,6 +67,7 @@ COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
 RELEASE_DATE=$(date +%Y-%m-%d)
 
 NON_RELEASE_CLEAN_TYPES='["setup", "chore", "test", "docs", "release"]'
+NON_RELEASE_CONVENTIONAL_TYPES='["docs", "style", "refactor", "test", "build", "ci", "chore", "revert"]'
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -150,16 +151,41 @@ generate_entry() {
     echo -e "${entry}"
 }
 
-filter_non_release_clean_commits() {
+supports_unreleased_convention() {
+    [[ "${COMMIT_CONVENTION}" == "clean-commit" ]] || [[ "${COMMIT_CONVENTION}" == "conventional" ]]
+}
+
+get_non_release_types_json() {
+    case "${COMMIT_CONVENTION}" in
+        clean-commit)
+            echo "${NON_RELEASE_CLEAN_TYPES}"
+            ;;
+        conventional)
+            echo "${NON_RELEASE_CONVENTIONAL_TYPES}"
+            ;;
+        *)
+            echo '[]'
+            ;;
+    esac
+}
+
+filter_non_release_commits() {
     local commits_json="$1"
 
     if ! command -v jq &> /dev/null; then
-        log_warning "jq is required to filter non-release-trigger Clean Commit types"
+        log_warning "jq is required to filter non-release-trigger commit types"
         echo "[]"
         return
     fi
 
-    echo "${commits_json}" | jq -c --argjson allowed "${NON_RELEASE_CLEAN_TYPES}" '
+    local allowed
+    allowed=$(get_non_release_types_json)
+    if [[ "${allowed}" == "[]" ]]; then
+        echo "[]"
+        return
+    fi
+
+    echo "${commits_json}" | jq -c --argjson allowed "${allowed}" '
         [.[] | select(.type as $type | $allowed | index($type))]
     '
 }
@@ -327,7 +353,7 @@ PACKAGES_DATA="${PACKAGES_DATA:-[]}"
 PER_PACKAGE_COMMITS="${PER_PACKAGE_COMMITS:-}"
 
 if [[ "${VERSION_BUMP_TYPE}" == "none" ]]; then
-    if [[ "${COMMIT_CONVENTION}" != "clean-commit" ]]; then
+    if ! supports_unreleased_convention; then
         log_info "Skipping [Unreleased] updates for ${COMMIT_CONVENTION}"
         echo "updated=false" >> $GITHUB_OUTPUT
         echo "changelog-entry=" >> $GITHUB_OUTPUT
@@ -337,7 +363,7 @@ if [[ "${VERSION_BUMP_TYPE}" == "none" ]]; then
 
     UPDATED=false
     PKG_CHANGELOGS="{}"
-    UNRELEASED_COMMITS=$(filter_non_release_clean_commits "${COMMITS_JSON}")
+    UNRELEASED_COMMITS=$(filter_non_release_commits "${COMMITS_JSON}")
 
     if [[ "${ROOT_CHANGELOG}" == "true" ]]; then
         if update_unreleased_if_needed "${CHANGELOG_PATH}" "${UNRELEASED_COMMITS}"; then
@@ -362,7 +388,7 @@ if [[ "${VERSION_BUMP_TYPE}" == "none" ]]; then
                     continue
                 fi
 
-                pkg_unreleased_commits=$(filter_non_release_clean_commits "${pkg_commits}")
+                pkg_unreleased_commits=$(filter_non_release_commits "${pkg_commits}")
                 if [[ "${pkg_unreleased_commits}" == "[]" ]]; then
                     continue
                 fi
@@ -384,7 +410,7 @@ if [[ "${VERSION_BUMP_TYPE}" == "none" ]]; then
     fi
 
     if [[ "${UPDATED}" == "false" ]]; then
-        log_warning "No non-release-trigger Clean Commit changes produced changelog updates"
+        log_warning "No non-release-trigger ${COMMIT_CONVENTION} changes produced changelog updates"
     fi
 
     echo "updated=${UPDATED}" >> $GITHUB_OUTPUT
@@ -396,7 +422,7 @@ fi
 # Generate entry
 CHANGELOG_ENTRY=$(generate_entry "${VERSION}" "${RELEASE_DATE}" "${COMMITS_JSON}")
 
-if [[ "${COMMIT_CONVENTION}" == "clean-commit" ]] && [[ "${ROOT_CHANGELOG}" == "true" ]]; then
+if supports_unreleased_convention && [[ "${ROOT_CHANGELOG}" == "true" ]]; then
     set_unreleased_content "${CHANGELOG_PATH}" "" || true
 fi
 
@@ -462,7 +488,7 @@ if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; the
             
             # Insert into package changelog
             pkg_changelog_path="${pkg_path}/CHANGELOG.md"
-            if [[ "${COMMIT_CONVENTION}" == "clean-commit" ]]; then
+            if supports_unreleased_convention; then
                 set_unreleased_content "${pkg_changelog_path}" "" || true
             fi
             insert_entry "${pkg_changelog_path}" "${pkg_changelog_entry}"
