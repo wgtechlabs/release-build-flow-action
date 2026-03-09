@@ -268,7 +268,7 @@ jobs:
 |-------|-------------|---------|
 | `dry-run` | Run without creating tags or releases (testing mode) | `false` |
 | `tag-only` | Only create tag without GitHub Release | `false` |
-| `update-major-tag` | Automatically update major version tag (e.g., `v1`) to point to latest release. Standard practice for GitHub Actions. | `false` |
+| `update-major-tag` | Automatically update major version tag (e.g., `v1`) to point to the latest release commit using its own tag ref. Standard practice for GitHub Actions. | `false` |
 | `fetch-depth` | Number of commits to fetch for changelog (0 for all) | `0` |
 | `include-all-commits` | Include all commits in changelog, not just since last tag | `false` |
 
