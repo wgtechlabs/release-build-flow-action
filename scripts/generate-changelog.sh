@@ -220,6 +220,23 @@ set_unreleased_content() {
     return 0
 }
 
+update_unreleased_if_needed() {
+    local file="$1"
+    local commits_json="$2"
+
+    if [[ "${commits_json}" == "[]" ]] || [[ -z "${commits_json}" ]]; then
+        return 1
+    fi
+
+    local unreleased_content
+    unreleased_content=$(generate_sections_body "${commits_json}")
+    if [[ -z "${unreleased_content}" ]]; then
+        return 1
+    fi
+
+    set_unreleased_content "${file}" "${unreleased_content}"
+}
+
 # Insert entry into changelog
 insert_entry() {
     local file="$1"
@@ -303,48 +320,92 @@ if [[ "${COMMITS_JSON}" == "[]" ]] || [[ -z "${COMMITS_JSON}" ]]; then
     exit 0
 fi
 
+MONOREPO="${MONOREPO:-false}"
+PER_PACKAGE_CHANGELOG="${PER_PACKAGE_CHANGELOG:-true}"
+ROOT_CHANGELOG="${ROOT_CHANGELOG:-true}"
+PACKAGES_DATA="${PACKAGES_DATA:-[]}"
+PER_PACKAGE_COMMITS="${PER_PACKAGE_COMMITS:-}"
+
 if [[ "${VERSION_BUMP_TYPE}" == "none" ]]; then
     if [[ "${COMMIT_CONVENTION}" != "clean-commit" ]]; then
         log_info "Skipping [Unreleased] updates for ${COMMIT_CONVENTION}"
         echo "updated=false" >> $GITHUB_OUTPUT
         echo "changelog-entry=" >> $GITHUB_OUTPUT
+        echo "per-package-changelogs={}" >> $GITHUB_OUTPUT
         exit 0
     fi
 
+    UPDATED=false
+    PKG_CHANGELOGS="{}"
     UNRELEASED_COMMITS=$(filter_non_release_clean_commits "${COMMITS_JSON}")
-    if [[ "${UNRELEASED_COMMITS}" == "[]" ]] || [[ -z "${UNRELEASED_COMMITS}" ]]; then
-        log_warning "No non-release-trigger Clean Commit changes to add to [Unreleased]"
-        echo "updated=false" >> $GITHUB_OUTPUT
-        echo "changelog-entry=" >> $GITHUB_OUTPUT
-        exit 0
-    fi
 
-    UNRELEASED_CONTENT=$(generate_sections_body "${UNRELEASED_COMMITS}")
-    if [[ -z "${UNRELEASED_CONTENT}" ]]; then
-        log_warning "No mapped changelog sections found for [Unreleased]"
-        echo "updated=false" >> $GITHUB_OUTPUT
-        echo "changelog-entry=" >> $GITHUB_OUTPUT
-        exit 0
-    fi
-
-    if set_unreleased_content "${CHANGELOG_PATH}" "${UNRELEASED_CONTENT}"; then
-        echo "updated=true" >> $GITHUB_OUTPUT
+    if [[ "${ROOT_CHANGELOG}" == "true" ]]; then
+        if update_unreleased_if_needed "${CHANGELOG_PATH}" "${UNRELEASED_COMMITS}"; then
+            UPDATED=true
+        fi
     else
-        echo "updated=false" >> $GITHUB_OUTPUT
+        log_info "Skipping root [Unreleased] update because root-changelog is disabled"
     fi
+
+    if [[ "${MONOREPO}" == "true" ]] && [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; then
+        if [[ "${PACKAGES_DATA}" != "[]" ]]; then
+            while IFS= read -r package; do
+                pkg_name=$(echo "${package}" | jq -r '.name')
+                pkg_path=$(echo "${package}" | jq -r '.path')
+
+                pkg_commits="[]"
+                if [[ -n "${PER_PACKAGE_COMMITS}" ]] && [[ "${PER_PACKAGE_COMMITS}" != "{}" ]]; then
+                    pkg_commits=$(echo "${PER_PACKAGE_COMMITS}" | MSYS_NO_PATHCONV=1 jq -c --arg path "${pkg_path}" 'to_entries | map(select(.key == $path) | .value) | .[0] // []')
+                fi
+
+                if [[ "${pkg_commits}" == "[]" ]]; then
+                    continue
+                fi
+
+                pkg_unreleased_commits=$(filter_non_release_clean_commits "${pkg_commits}")
+                if [[ "${pkg_unreleased_commits}" == "[]" ]]; then
+                    continue
+                fi
+
+                pkg_changelog_path="${pkg_path}/CHANGELOG.md"
+                pkg_unreleased_entry=$(generate_sections_body "${pkg_unreleased_commits}")
+                if [[ -z "${pkg_unreleased_entry}" ]]; then
+                    continue
+                fi
+
+                PKG_CHANGELOGS=$(echo "${PKG_CHANGELOGS}" | MSYS_NO_PATHCONV=1 jq -c --arg path "${pkg_path}" --arg entry "${pkg_unreleased_entry}" '. + {($path): $entry}')
+
+                if set_unreleased_content "${pkg_changelog_path}" "${pkg_unreleased_entry}"; then
+                    UPDATED=true
+                    log_success "Updated [Unreleased] for ${pkg_name}"
+                fi
+            done < <(echo "${PACKAGES_DATA}" | jq -c '.[]')
+        fi
+    fi
+
+    if [[ "${UPDATED}" == "false" ]]; then
+        log_warning "No non-release-trigger Clean Commit changes produced changelog updates"
+    fi
+
+    echo "updated=${UPDATED}" >> $GITHUB_OUTPUT
     echo "changelog-entry=" >> $GITHUB_OUTPUT
+    echo "per-package-changelogs=${PKG_CHANGELOGS}" >> $GITHUB_OUTPUT
     exit 0
 fi
 
 # Generate entry
 CHANGELOG_ENTRY=$(generate_entry "${VERSION}" "${RELEASE_DATE}" "${COMMITS_JSON}")
 
-if [[ "${COMMIT_CONVENTION}" == "clean-commit" ]]; then
+if [[ "${COMMIT_CONVENTION}" == "clean-commit" ]] && [[ "${ROOT_CHANGELOG}" == "true" ]]; then
     set_unreleased_content "${CHANGELOG_PATH}" "" || true
 fi
 
 # Insert into changelog
-insert_entry "${CHANGELOG_PATH}" "${CHANGELOG_ENTRY}"
+if [[ "${ROOT_CHANGELOG}" == "true" ]]; then
+    insert_entry "${CHANGELOG_PATH}" "${CHANGELOG_ENTRY}"
+else
+    log_info "Skipping root changelog release entry because root-changelog is disabled"
+fi
 
 # Output results - use proper multiline output format
 {
@@ -359,12 +420,6 @@ log_success "Changelog entry generated successfully"
 # =============================================================================
 # MONOREPO MODE - Generate per-package changelogs
 # =============================================================================
-
-MONOREPO="${MONOREPO:-false}"
-PER_PACKAGE_CHANGELOG="${PER_PACKAGE_CHANGELOG:-true}"
-ROOT_CHANGELOG="${ROOT_CHANGELOG:-true}"
-PACKAGES_DATA="${PACKAGES_DATA:-[]}"
-PER_PACKAGE_COMMITS="${PER_PACKAGE_COMMITS:-}"
 
 if [[ "${MONOREPO}" != "true" ]]; then
     exit 0
@@ -391,7 +446,7 @@ if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; the
             # Get commits for this package
             pkg_commits="[]"
             if [[ -n "${PER_PACKAGE_COMMITS}" ]] && [[ "${PER_PACKAGE_COMMITS}" != "{}" ]]; then
-                pkg_commits=$(echo "${PER_PACKAGE_COMMITS}" | jq --arg path "${pkg_path}" '.[$path] // []')
+                pkg_commits=$(echo "${PER_PACKAGE_COMMITS}" | MSYS_NO_PATHCONV=1 jq --arg path "${pkg_path}" 'to_entries | map(select(.key == $path) | .value) | .[0] // []')
             fi
             
             if [[ "${pkg_commits}" == "[]" ]]; then
@@ -403,10 +458,13 @@ if [[ "${PER_PACKAGE_CHANGELOG}" == "true" ]] && command -v jq &> /dev/null; the
             pkg_changelog_entry=$(generate_entry "${pkg_version}" "${RELEASE_DATE}" "${pkg_commits}")
             
             # Store generated entry for direct use by create-release step
-            PKG_CHANGELOGS=$(echo "${PKG_CHANGELOGS}" | jq -c --arg path "${pkg_path}" --arg entry "${pkg_changelog_entry}" '. + {($path): $entry}')
+            PKG_CHANGELOGS=$(echo "${PKG_CHANGELOGS}" | MSYS_NO_PATHCONV=1 jq -c --arg path "${pkg_path}" --arg entry "${pkg_changelog_entry}" '. + {($path): $entry}')
             
             # Insert into package changelog
             pkg_changelog_path="${pkg_path}/CHANGELOG.md"
+            if [[ "${COMMIT_CONVENTION}" == "clean-commit" ]]; then
+                set_unreleased_content "${pkg_changelog_path}" "" || true
+            fi
             insert_entry "${pkg_changelog_path}" "${pkg_changelog_entry}"
             
             log_success "Generated changelog for ${pkg_name}"
