@@ -39,7 +39,16 @@ run_test() {
     fi
 }
 
-# Extract the generate_entry function from generate-changelog.sh for unit testing
+# Extract the generate_sections_body and generate_entry functions from
+# generate-changelog.sh for unit testing.
+generate_sections_body_definition="$(
+    awk '
+        /^generate_sections_body[[:space:]]*\(\)[[:space:]]*\{/ { in_func=1 }
+        in_func { print }
+        in_func && /^}/ { exit }
+    ' "${GENERATE_CHANGELOG_SCRIPT}"
+)"
+
 generate_entry_definition="$(
     awk '
         /^generate_entry[[:space:]]*\(\)[[:space:]]*\{/ { in_func=1 }
@@ -48,11 +57,12 @@ generate_entry_definition="$(
     ' "${GENERATE_CHANGELOG_SCRIPT}"
 )"
 
-if [ -z "${generate_entry_definition}" ]; then
-    echo "Error: could not extract generate_entry from ${GENERATE_CHANGELOG_SCRIPT}" >&2
+if [ -z "${generate_sections_body_definition}" ] || [ -z "${generate_entry_definition}" ]; then
+    echo "Error: could not extract changelog helpers from ${GENERATE_CHANGELOG_SCRIPT}" >&2
     exit 1
 fi
 
+eval "${generate_sections_body_definition}"
 eval "${generate_entry_definition}"
 
 echo "=== Testing per-package changelog generation and lookup ==="

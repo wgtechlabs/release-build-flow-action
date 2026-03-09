@@ -40,6 +40,9 @@ export COMMIT_TYPE_MAPPING='{
   "change": "Changed",
   "chore": "Changed",
   "setup": "Changed",
+    "docs": "Changed",
+    "test": "Changed",
+    "release": "Changed",
   "deprecate": "Deprecated",
   "remove": "Removed",
   "delete": "Removed"
@@ -99,6 +102,18 @@ run_test "security maps to Security" \
 
 run_test "chore maps to Changed" \
     "chore" \
+    "Changed"
+
+run_test "docs maps to Changed" \
+    "docs" \
+    "Changed"
+
+run_test "test maps to Changed" \
+    "test" \
+    "Changed"
+
+run_test "release maps to Changed" \
+    "release" \
     "Changed"
 
 run_test "remove maps to Removed" \
