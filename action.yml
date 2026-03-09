@@ -48,33 +48,15 @@ inputs:
   
   # Commit Type Mapping (Clean Commit to Keep a Changelog)
   commit-type-mapping:
-    description: 'JSON mapping of commit types to changelog sections (default: standard mapping)'
+    description: 'JSON mapping of commit types to changelog sections (empty uses convention-aware defaults)'
     required: false
-    default: |
-      {
-        "feat": "Added",
-        "new": "Added",
-        "add": "Added",
-        "fix": "Fixed",
-        "bugfix": "Fixed",
-        "revert": "Fixed",
-        "security": "Security",
-        "perf": "Changed",
-        "refactor": "Changed",
-        "update": "Changed",
-        "change": "Changed",
-        "chore": "Changed",
-        "setup": "Changed",
-        "deprecate": "Deprecated",
-        "remove": "Removed",
-        "delete": "Removed"
-      }
+    default: ''
   
   # Exclusion Configuration
   exclude-types:
-    description: 'Comma-separated list of commit types to exclude from changelog (e.g., docs,style,test)'
+    description: 'Comma-separated list of commit types to exclude from changelog (empty uses convention-aware defaults)'
     required: false
-    default: 'docs,style,test,ci,build,release'
+    default: ''
   
   exclude-scopes:
     description: 'Comma-separated list of commit scopes to exclude from changelog'
@@ -88,14 +70,14 @@ inputs:
     default: 'BREAKING CHANGE,BREAKING-CHANGE,breaking'
   
   minor-keywords:
-    description: 'Comma-separated keywords that trigger minor version bump'
+    description: 'Comma-separated keywords that trigger minor version bump (empty uses convention-aware defaults)'
     required: false
-    default: 'feat,new,add'
+    default: ''
   
   patch-keywords:
-    description: 'Comma-separated keywords that trigger patch version bump'
+    description: 'Comma-separated keywords that trigger patch version bump (empty uses convention-aware defaults)'
     required: false
-    default: 'fix,bugfix,security,perf,update,remove'
+    default: ''
   
   # Release Configuration
   create-release:

@@ -166,8 +166,8 @@ jobs:
 | `initial-version` | Fallback version when no tags or manifest version exist | `0.1.0` |
 | `prerelease-prefix` | Prefix for prerelease versions | `` |
 | `major-keywords` | Comma-separated keywords that trigger major bumps | `BREAKING CHANGE,BREAKING-CHANGE,breaking` |
-| `minor-keywords` | Comma-separated keywords that trigger minor bumps | `feat,new,add` |
-| `patch-keywords` | Comma-separated keywords that trigger patch bumps | `fix,bugfix,security,perf,update,remove` |
+| `minor-keywords` | Comma-separated keywords that trigger minor bumps, empty uses convention-aware defaults | `` |
+| `patch-keywords` | Comma-separated keywords that trigger patch bumps, empty uses convention-aware defaults | `` |
 | `fetch-depth` | Number of commits fetched for changelog generation, `0` for all | `0` |
 | `include-all-commits` | Include all commits instead of only commits since the last tag | `false` |
 
@@ -178,8 +178,8 @@ jobs:
 | `changelog-path` | Path to the root changelog | `./CHANGELOG.md` |
 | `changelog-enabled` | Generate changelog entries | `true` |
 | `commit-changelog` | Commit changelog and version-file updates | `true` |
-| `commit-type-mapping` | JSON map from commit types to changelog sections | standard mapping |
-| `exclude-types` | Comma-separated commit types to skip | `style,ci,build` |
+| `commit-type-mapping` | JSON map from commit types to changelog sections, empty uses convention-aware defaults | `` |
+| `exclude-types` | Comma-separated commit types to skip, empty uses convention-aware defaults | `` |
 | `exclude-scopes` | Comma-separated scopes to skip | `` |
 
 ### Release Configuration
