@@ -69,7 +69,7 @@ COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
 
 # Convention-aware defaults for exclude types
 if [[ "${COMMIT_CONVENTION}" == "conventional" ]]; then
-    EXCLUDE_TYPES="${EXCLUDE_TYPES:-docs,style,test,ci,build,chore}"
+    EXCLUDE_TYPES="${EXCLUDE_TYPES:-}"
 else
     EXCLUDE_TYPES="${EXCLUDE_TYPES:-style,ci,build}"
 fi
@@ -84,40 +84,60 @@ PREVIOUS_TAG="${PREVIOUS_TAG:-}"
 # Get mapping for commit type using jq if available, otherwise use basic parsing
 get_changelog_section() {
     local commit_type="$1"
+    local section=""
+
+    if [[ "${COMMIT_CONVENTION}" == "conventional" ]]; then
+        case "${commit_type}" in
+            feat)
+                section="Added"
+                ;;
+            fix|revert)
+                section="Fixed"
+                ;;
+            perf|docs|style|refactor|test|build|ci|chore)
+                section="Changed"
+                ;;
+            *)
+                section=""
+                ;;
+        esac
+    else
+        case "${commit_type}" in
+            feat|new|add)
+                section="Added"
+                ;;
+            fix|bugfix|revert)
+                section="Fixed"
+                ;;
+            security)
+                section="Security"
+                ;;
+            perf|style|refactor|build|ci|update|change|chore|setup|docs|test|release)
+                section="Changed"
+                ;;
+            deprecate)
+                section="Deprecated"
+                ;;
+            remove|delete)
+                section="Removed"
+                ;;
+            *)
+                section=""
+                ;;
+        esac
+    fi
     
     # Try using jq if available
-    if command -v jq &> /dev/null; then
-        local section=$(echo "${COMMIT_TYPE_MAPPING}" | jq -r --arg type "${commit_type}" '.[$type] // empty')
-        if [[ -n "${section}" ]]; then
-            echo "${section}"
+    if command -v jq &> /dev/null && [[ -n "${COMMIT_TYPE_MAPPING}" ]]; then
+        local mapped_section
+        mapped_section=$(echo "${COMMIT_TYPE_MAPPING}" | jq -r --arg type "${commit_type}" '.[$type] // empty')
+        if [[ -n "${mapped_section}" ]]; then
+            echo "${mapped_section}"
             return
         fi
     fi
-    
-    # Fallback to basic parsing
-    case "${commit_type}" in
-        feat|new|add)
-            echo "Added"
-            ;;
-        fix|bugfix|revert)
-            echo "Fixed"
-            ;;
-        security)
-            echo "Security"
-            ;;
-        perf|refactor|update|change|chore|setup|docs|test|release)
-            echo "Changed"
-            ;;
-        deprecate)
-            echo "Deprecated"
-            ;;
-        remove|delete)
-            echo "Removed"
-            ;;
-        *)
-            echo ""
-            ;;
-    esac
+
+    echo "${section}"
 }
 
 # Check if type should be excluded
