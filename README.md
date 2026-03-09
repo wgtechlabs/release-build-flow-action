@@ -57,6 +57,7 @@ Versioning is deterministic. When no tags exist, the action first checks `packag
 - semantic versioning from commit history
 - Clean Commit and Conventional Commit support
 - Keep a Changelog generation
+- Clean Commit maintenance types flow into `[Unreleased]` until the next release
 - optional changelog commit back to the repository
 - automatic manifest version syncing for `package.json`, `Cargo.toml`, `pyproject.toml`, and `pubspec.yaml`
 - GitHub Release creation with generated notes
@@ -73,7 +74,7 @@ Default changelog mapping:
 | `feat`, `new`, `add` | `Added` |
 | `fix`, `bugfix`, `revert` | `Fixed` |
 | `security` | `Security` |
-| `perf`, `refactor`, `update`, `change`, `chore`, `setup` | `Changed` |
+| `perf`, `refactor`, `update`, `change`, `chore`, `setup`, `docs`, `test`, `release` | `Changed` |
 | `deprecate` | `Deprecated` |
 | `remove`, `delete` | `Removed` |
 
@@ -177,7 +178,7 @@ jobs:
 | `changelog-enabled` | Generate changelog entries | `true` |
 | `commit-changelog` | Commit changelog and version-file updates | `true` |
 | `commit-type-mapping` | JSON map from commit types to changelog sections | standard mapping |
-| `exclude-types` | Comma-separated commit types to skip | `docs,style,test,ci,build,release` |
+| `exclude-types` | Comma-separated commit types to skip | `style,ci,build` |
 | `exclude-scopes` | Comma-separated scopes to skip | `` |
 
 ### Release Configuration
