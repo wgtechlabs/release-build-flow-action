@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [1.7.0] - 2026-03-09
+
+### Added
+
+- convention-aware non-release type filtering
+- support monorepo [Unreleased] updates with root/pkg flags
+
+### Changed
+
+- refactor commit type mapping with convention-aware section resolution
+- use empty convention-aware defaults for inputs
+- add monorepo disabled changelog output tests
+- document monorepo unreleased changelog flag support
+- fix MSYS path conversion in per-package changelog lookup
+- update changelog types and exclude-types defaults
+- add unreleased and setup-type changelog tests
+- remove version-bump guard from changelog steps
+- support unreleased maintenance-type entries
+- simplify structure and update description
+- clarify update-major-tag targets the release commit
+- point major tag directly to release commit
+- strip carriage returns to fix cross-platform compatibility
+- ignore `.contributerc.json` config file
+
+### Removed
+
+- revert from conventional patch keywords
+- clean up unused space in changelog
+
 ## [1.6.1] - 2026-03-09
 
 ### Changed
