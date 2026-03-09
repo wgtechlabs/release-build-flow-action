@@ -364,7 +364,6 @@ runs:
     
     - name: Parse Commits
       id: parse-commits
-      if: steps.detect-version.outputs.version-bump-type != 'none'
       shell: bash
       run: |
         bash ${{ github.action_path }}/scripts/parse-commits.sh
@@ -382,7 +381,7 @@ runs:
     
     - name: Generate Changelog
       id: generate-changelog
-      if: inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none'
+      if: inputs.changelog-enabled == 'true'
       shell: bash
       run: |
         bash ${{ github.action_path }}/scripts/generate-changelog.sh
@@ -390,7 +389,9 @@ runs:
         CHANGELOG_PATH: ${{ inputs.changelog-path }}
         VERSION: ${{ steps.detect-version.outputs.version }}
         VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
+        VERSION_BUMP_TYPE: ${{ steps.detect-version.outputs.version-bump-type }}
         COMMITS_JSON: ${{ steps.parse-commits.outputs.commits-json }}
+        COMMIT_CONVENTION: ${{ inputs.commit-convention }}
         MONOREPO: ${{ inputs.monorepo }}
         PER_PACKAGE_CHANGELOG: ${{ inputs.per-package-changelog }}
         ROOT_CHANGELOG: ${{ inputs.root-changelog }}
@@ -411,7 +412,7 @@ runs:
         UNIFIED_VERSION: ${{ inputs.unified-version }}
     
     - name: Commit Changelog
-      if: inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
+      if: inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.generate-changelog.outputs.updated == 'true' && inputs.dry-run == 'false'
       shell: bash
       run: |
         bash ${{ github.action_path }}/scripts/commit-changelog.sh
