@@ -80,7 +80,7 @@ RELEASE_DATE="2026-02-22"
 pkg_changelog_entry=$(generate_entry "${pkg_version}" "${RELEASE_DATE}" "${pkg_commits}")
 PKG_CHANGELOGS=$(echo "${PKG_CHANGELOGS}" | jq -c --arg path "${pkg_path}" --arg entry "${pkg_changelog_entry}" '. + {($path): $entry}')
 
-stored=$(echo "${PKG_CHANGELOGS}" | jq -r --arg path "${pkg_path}" '.[$path] // empty')
+stored=$(echo "${PKG_CHANGELOGS}" | jq -r --arg path "${pkg_path}" '.[$path] // empty' | tr -d '\r')
 run_test "PKG_CHANGELOGS stores entry keyed by package path" \
     "## [1.2.0] - 2026-02-22" \
     "$(echo "${stored}" | head -n 1)"
@@ -179,8 +179,8 @@ for pkg in "packages/pkg-a:1.0.0" "packages/pkg-b:2.1.0"; do
     PKG_CHANGELOGS=$(echo "${PKG_CHANGELOGS}" | jq -c --arg p "${path}" --arg e "${entry}" '. + {($p): $e}')
 done
 
-pkg_a_entry=$(echo "${PKG_CHANGELOGS}" | jq -r '."packages/pkg-a" // empty' | head -n 1)
-pkg_b_entry=$(echo "${PKG_CHANGELOGS}" | jq -r '."packages/pkg-b" // empty' | head -n 1)
+pkg_a_entry=$(echo "${PKG_CHANGELOGS}" | jq -r '.["packages/pkg-a"] // empty' | tr -d '\r' | head -n 1)
+pkg_b_entry=$(echo "${PKG_CHANGELOGS}" | jq -r '.["packages/pkg-b"] // empty' | tr -d '\r' | head -n 1)
 
 run_test "Multiple packages stored: pkg-a header correct" \
     "## [1.0.0] - 2026-02-22" \

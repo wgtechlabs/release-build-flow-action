@@ -21,6 +21,7 @@ run_test() {
     local test_name="$1"
     local input_packages="$2"
     local expected_paths="$3"
+    local result=""
 
     test_count=$((test_count + 1))
 
@@ -37,6 +38,7 @@ printf '%s\n' "${WORKSPACE_PACKAGES}" > "${TMPFILE}"
 jq -r '.[] | objects | select(.private != true) | .path' "${TMPFILE}"
 BASH_EOF
     )
+    result="$(printf '%s' "${result}" | tr -d '\r')"
 
     if [ "${result}" = "${expected_paths}" ]; then
         echo -e "${GREEN}✓${NC} Test ${test_count}: ${test_name}"
