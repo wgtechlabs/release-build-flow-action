@@ -284,7 +284,7 @@ if command -v jq &> /dev/null && [[ "${PACKAGES_DATA}" != "[]" ]]; then
         
         # Primary: use directly generated per-package changelog entry (avoids file I/O timing issues)
         if [[ -n "${PER_PACKAGE_CHANGELOGS}" ]] && [[ "${PER_PACKAGE_CHANGELOGS}" != "{}" ]]; then
-            pkg_changelog=$(echo "${PER_PACKAGE_CHANGELOGS}" | jq -r --arg path "${pkg_path}" '.[$path] // empty' 2>/dev/null || echo "")
+            pkg_changelog=$(echo "${PER_PACKAGE_CHANGELOGS}" | MSYS_NO_PATHCONV=1 jq -r --arg path "${pkg_path}" 'to_entries | map(select(.key == $path) | .value) | .[0] // empty' 2>/dev/null || echo "")
             if [[ -n "${pkg_changelog}" ]]; then
                 log_info "Using generated changelog entry for ${pkg_name}"
             fi
