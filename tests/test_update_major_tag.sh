@@ -1,8 +1,9 @@
 #!/bin/bash
 # =============================================================================
-# TEST: update-major-tag feature (extract_major_tag function)
+# TEST: update-major-tag feature
 # =============================================================================
-# Tests the extract_major_tag helper in scripts/create-tag.sh
+# Tests the major-tag helpers and ensures the floating major tag points directly
+# to the release commit instead of becoming an alias to the release tag object.
 # =============================================================================
 
 set -euo pipefail
@@ -29,7 +30,21 @@ assert_eq() {
     fi
 }
 
-echo "=== Testing extract_major_tag function (update-major-tag feature) ==="
+assert_true() {
+    local label="$1"
+    shift
+
+    TOTAL=$((TOTAL + 1))
+    if "$@"; then
+        echo "✓ Test ${TOTAL}: ${label}"
+        PASS=$((PASS + 1))
+    else
+        echo "✗ Test ${TOTAL}: ${label}"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+echo "=== Testing update-major-tag helpers ==="
 echo ""
 
 # -----------------------------------------------------------------------------
@@ -49,6 +64,12 @@ extract_major_tag() {
     else
         echo ""
     fi
+}
+
+resolve_tag_commit() {
+    local tag="$1"
+
+    git rev-parse "${tag}^{commit}" 2>/dev/null || return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -161,6 +182,54 @@ assert_eq "@myorg/core@1.2.3 -> @myorg/core@1" \
 assert_eq "pkg-name-2.0.0 -> pkg-name-2" \
     "pkg-name-2" \
     "$(extract_major_tag "pkg-name-2.0.0")"
+
+# -----------------------------------------------------------------------------
+# Section 6: Major tag update targets the commit, not the release tag object
+# -----------------------------------------------------------------------------
+
+echo ""
+echo "--- Major tag update semantics ---"
+echo ""
+
+tmp_repo="$(mktemp -d)"
+trap 'rm -rf "${tmp_repo}"' EXIT
+
+pushd "${tmp_repo}" > /dev/null
+git init -q
+git config user.name "Test User"
+git config user.email "test@example.com"
+
+echo "alpha" > file.txt
+git add file.txt
+git commit -qm "init"
+git tag -a "v1.6.0" -m "release v1.6.0"
+
+echo "beta" >> file.txt
+git commit -am "next" -q
+git tag -a "v1.6.1" -m "release v1.6.1"
+
+release_commit="$(resolve_tag_commit "v1.6.1")"
+git tag -fa "v1" -m "release v1" "${release_commit}" > /dev/null
+
+major_target_type="$(git cat-file -t refs/tags/v1)"
+major_target_commit="$(git rev-parse v1^{commit})"
+release_tag_object="$(git rev-parse v1.6.1)"
+
+assert_eq "resolve_tag_commit peels annotated release tag to commit" \
+    "$(git rev-parse v1.6.1^{commit})" \
+    "${release_commit}"
+
+assert_eq "major tag peels to release commit" \
+    "${release_commit}" \
+    "${major_target_commit}"
+
+assert_true "major tag has its own tag object" test "$(git rev-parse v1)" != "${release_tag_object}"
+
+assert_eq "major tag ref remains an annotated tag" \
+    "tag" \
+    "${major_target_type}"
+
+popd > /dev/null
 
 # -----------------------------------------------------------------------------
 # Summary

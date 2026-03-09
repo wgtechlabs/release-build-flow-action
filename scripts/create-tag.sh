@@ -83,6 +83,12 @@ extract_major_tag() {
     fi
 }
 
+resolve_tag_commit() {
+    local tag="$1"
+
+    git rev-parse "${tag}^{commit}" 2>/dev/null || return 1
+}
+
 # =============================================================================
 # MAIN LOGIC
 # =============================================================================
@@ -149,9 +155,17 @@ if [[ "${UPDATE_MAJOR_TAG}" == "true" ]]; then
     MAJOR_TAG=$(extract_major_tag "${VERSION_TAG}")
     
     if [[ -n "${MAJOR_TAG}" ]]; then
-        log_info "Updating ${MAJOR_TAG} to point to ${VERSION_TAG}"
-        git tag -f "${MAJOR_TAG}" "${VERSION_TAG}"
-        git push -f origin "${MAJOR_TAG}"
+        RELEASE_COMMIT=$(resolve_tag_commit "${VERSION_TAG}")
+
+        if [[ -z "${RELEASE_COMMIT}" ]]; then
+            log_error "Cannot resolve commit for release tag: ${VERSION_TAG}"
+            exit 1
+        fi
+
+        log_info "Updating ${MAJOR_TAG} to point to ${VERSION_TAG} (${RELEASE_COMMIT})"
+        TAG_MSG=$(format_tag_message "${MAJOR_TAG}")
+        git tag -fa "${MAJOR_TAG}" -m "${TAG_MSG}" "${RELEASE_COMMIT}"
+        git push -f origin "refs/tags/${MAJOR_TAG}"
         log_success "Major version tag ${MAJOR_TAG} updated to ${VERSION_TAG}"
     else
         log_warning "Cannot extract major version from tag: ${VERSION_TAG}"
