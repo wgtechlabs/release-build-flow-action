@@ -58,6 +58,7 @@ Versioning is deterministic. When no tags exist, the action first checks `packag
 - Clean Commit and Conventional Commit support
 - Keep a Changelog generation
 - Clean Commit maintenance types flow into `[Unreleased]` until the next release
+- monorepo `[Unreleased]` updates respect `root-changelog` and `per-package-changelog`
 - optional changelog commit back to the repository
 - automatic manifest version syncing for `package.json`, `Cargo.toml`, `pyproject.toml`, and `pubspec.yaml`
 - GitHub Release creation with generated notes
