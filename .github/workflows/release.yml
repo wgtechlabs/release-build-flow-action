@@ -26,6 +26,7 @@ jobs:
           version-prefix: 'v'
           initial-version: '0.1.0'
           changelog-path: './CHANGELOG.md'
+          update-major-tag: true
 
       - name: Verify Version Output
         if: steps.release.outputs.version-tag != ''
@@ -61,38 +62,6 @@ jobs:
           echo "  Removed: ${{ steps.release.outputs.removed-count }}"
           echo "  Fixed: ${{ steps.release.outputs.fixed-count }}"
           echo "  Security: ${{ steps.release.outputs.security-count }}"
-
-      - name: Update Major Version Tag
-        if: steps.release.outputs.release-created == 'true'
-        run: |
-          VERSION_TAG="${{ steps.release.outputs.version-tag }}"
-          echo "Processing version tag: $VERSION_TAG"
-
-          # Extract prefix and major version (e.g., v1.2.3 -> v + 1, release-2.3.4 -> release- + 2)
-          if [[ "$VERSION_TAG" =~ ^([^0-9]*)([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
-            PREFIX="${BASH_REMATCH[1]}"
-            MAJOR="${BASH_REMATCH[2]}"
-            MAJOR_VERSION="${PREFIX}${MAJOR}"
-            echo "Extracted major version: $MAJOR_VERSION (prefix: '${PREFIX}', major: ${MAJOR})"
-
-            # Configure git
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-
-            # Force-update the major version tag to point to the release tag
-            # This is standard practice for GitHub Actions to allow users to reference @v1
-            # Users can reference either the major version tag for automatic updates or specific release tags for pinned versions
-            echo "Updating $MAJOR_VERSION to point to $VERSION_TAG"
-            git tag -f "$MAJOR_VERSION" "$VERSION_TAG"
-            git push -f origin "$MAJOR_VERSION"
-
-            echo "✅ Successfully updated $MAJOR_VERSION tag"
-          else
-            echo "❌ ERROR: Version tag does not match expected semver format (<prefix>X.X.X)"
-            echo "   Actual: $VERSION_TAG"
-            echo "   Cannot extract major version for tag update"
-            exit 1
-          fi
 
       - name: No Release Created
         if: steps.release.outputs.version-bump-type == 'none'

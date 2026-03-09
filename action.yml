@@ -62,6 +62,7 @@ inputs:
         "add": "Added",
         "fix": "Fixed",
         "bugfix": "Fixed",
+        "revert": "Fixed",
         "security": "Security",
         "perf": "Changed",
         "refactor": "Changed",
@@ -78,7 +79,7 @@ inputs:
   exclude-types:
     description: 'Comma-separated list of commit types to exclude from changelog (e.g., docs,style,test)'
     required: false
-    default: 'docs,style,test,ci,build'
+    default: 'docs,style,test,ci,build,release'
   
   exclude-scopes:
     description: 'Comma-separated list of commit scopes to exclude from changelog'
@@ -99,7 +100,7 @@ inputs:
   patch-keywords:
     description: 'Comma-separated keywords that trigger patch version bump'
     required: false
-    default: 'fix,bugfix,security,perf'
+    default: 'fix,bugfix,security,perf,update,remove'
   
   # Release Configuration
   create-release:
@@ -126,17 +127,33 @@ inputs:
   git-user-name:
     description: 'Git user name for commits'
     required: false
-    default: 'github-actions[bot]'
+    default: 'WG Tech Labs'
   
   git-user-email:
     description: 'Git user email for commits'
     required: false
-    default: 'github-actions[bot]@users.noreply.github.com'
+    default: '262751631+wgtechlabs-automation@users.noreply.github.com'
   
   commit-changelog:
     description: 'Commit and push changelog changes back to repository'
     required: false
     default: 'true'
+  
+  # Version File Sync Configuration
+  sync-version-files:
+    description: 'Automatically update version in manifest files (package.json, Cargo.toml, pyproject.toml, pubspec.yaml)'
+    required: false
+    default: 'true'
+  
+  version-file-paths:
+    description: 'Comma-separated paths to manifest files to update (auto-detected if not specified)'
+    required: false
+    default: ''
+  
+  commit-convention:
+    description: 'Commit message convention for auto-generated commits (clean-commit or conventional)'
+    required: false
+    default: 'clean-commit'
   
   # Advanced Options
   dry-run:
@@ -146,6 +163,11 @@ inputs:
   
   tag-only:
     description: 'Only create tag without GitHub Release'
+    required: false
+    default: 'false'
+  
+  update-major-tag:
+    description: 'Automatically update the major version tag (e.g., v1) to point to the latest release tag. Standard practice for GitHub Actions.'
     required: false
     default: 'false'
   
@@ -199,6 +221,11 @@ inputs:
     description: 'All packages share a single unified version number'
     required: false
     default: 'false'
+  
+  monorepo-root-release:
+    description: 'Create a unified root release (tag and GitHub Release) alongside per-package releases in monorepo mode'
+    required: false
+    default: 'true'
   
   package-manager:
     description: 'Package manager for workspace detection (npm, bun, pnpm, yarn) - auto-detected if not specified'
@@ -278,6 +305,11 @@ outputs:
     description: 'Number of Security fixes'
     value: ${{ steps.generate-outputs.outputs.security-count }}
   
+  # Tag Outputs
+  major-tag:
+    description: 'The major version tag that was updated (e.g., v1). Empty if update-major-tag is disabled.'
+    value: ${{ steps.generate-outputs.outputs.major-tag }}
+  
   # Monorepo Outputs
   packages-updated:
     description: 'JSON array of packages that were updated (in monorepo mode)'
@@ -329,10 +361,12 @@ runs:
         INCLUDE_ALL_COMMITS: ${{ inputs.include-all-commits }}
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        WORKSPACE_PACKAGES_FILE: ${{ steps.detect-workspace.outputs.packages-file }}
         CHANGE_DETECTION: ${{ inputs.change-detection }}
         SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
         UNIFIED_VERSION: ${{ inputs.unified-version }}
         CASCADE_BUMPS: ${{ inputs.cascade-bumps }}
+        COMMIT_CONVENTION: ${{ inputs.commit-convention }}
     
     - name: Parse Commits
       id: parse-commits
@@ -347,8 +381,10 @@ runs:
         PREVIOUS_TAG: ${{ steps.detect-version.outputs.previous-tag }}
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        WORKSPACE_PACKAGES_FILE: ${{ steps.detect-workspace.outputs.packages-file }}
         CHANGE_DETECTION: ${{ inputs.change-detection }}
         SCOPE_PACKAGE_MAPPING: ${{ inputs.scope-package-mapping || steps.detect-workspace.outputs.scope-mapping }}
+        COMMIT_CONVENTION: ${{ inputs.commit-convention }}
     
     - name: Generate Changelog
       id: generate-changelog
@@ -362,11 +398,23 @@ runs:
         VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
         COMMITS_JSON: ${{ steps.parse-commits.outputs.commits-json }}
         MONOREPO: ${{ inputs.monorepo }}
-        WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
         PER_PACKAGE_CHANGELOG: ${{ inputs.per-package-changelog }}
         ROOT_CHANGELOG: ${{ inputs.root-changelog }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
         PER_PACKAGE_COMMITS: ${{ steps.parse-commits.outputs.per-package-commits }}
+    
+    - name: Sync Version Files
+      if: inputs.sync-version-files == 'true' && inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
+      shell: bash
+      run: |
+        bash ${{ github.action_path }}/scripts/sync-version-files.sh
+      env:
+        VERSION: ${{ steps.detect-version.outputs.version }}
+        SYNC_VERSION_FILES: ${{ inputs.sync-version-files }}
+        VERSION_FILE_PATHS: ${{ inputs.version-file-paths }}
+        MONOREPO: ${{ inputs.monorepo }}
+        PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        UNIFIED_VERSION: ${{ inputs.unified-version }}
     
     - name: Commit Changelog
       if: inputs.commit-changelog == 'true' && inputs.changelog-enabled == 'true' && steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
@@ -381,8 +429,13 @@ runs:
         CHANGELOG_PATH: ${{ inputs.changelog-path }}
         MONOREPO: ${{ inputs.monorepo }}
         WORKSPACE_PACKAGES: ${{ steps.detect-workspace.outputs.packages }}
+        WORKSPACE_PACKAGES_FILE: ${{ steps.detect-workspace.outputs.packages-file }}
+        COMMIT_CONVENTION: ${{ inputs.commit-convention }}
+        SYNC_VERSION_FILES: ${{ inputs.sync-version-files }}
+        VERSION_FILE_PATHS: ${{ inputs.version-file-paths }}
     
     - name: Create Tag
+      id: create-tag
       if: steps.detect-version.outputs.version-bump-type != 'none' && inputs.dry-run == 'false'
       shell: bash
       run: |
@@ -394,6 +447,10 @@ runs:
         VERSION_TAG: ${{ steps.detect-version.outputs.version-tag }}
         MONOREPO: ${{ inputs.monorepo }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        COMMIT_CONVENTION: ${{ inputs.commit-convention }}
+        UPDATE_MAJOR_TAG: ${{ inputs.update-major-tag }}
+        VERSION_PREFIX: ${{ inputs.version-prefix }}
+        MONOREPO_ROOT_RELEASE: ${{ inputs.monorepo-root-release }}
     
     - name: Create Release
       id: create-release
@@ -411,6 +468,8 @@ runs:
         CHANGELOG_ENTRY: ${{ steps.generate-changelog.outputs.changelog-entry }}
         MONOREPO: ${{ inputs.monorepo }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        PER_PACKAGE_CHANGELOGS: ${{ steps.generate-changelog.outputs.per-package-changelogs }}
+        MONOREPO_ROOT_RELEASE: ${{ inputs.monorepo-root-release }}
     
     - name: Generate Outputs
       id: generate-outputs
@@ -437,3 +496,5 @@ runs:
         RELEASE_CREATED: ${{ steps.create-release.outputs.created }}
         MONOREPO: ${{ inputs.monorepo }}
         PACKAGES_DATA: ${{ steps.detect-version.outputs.packages-data }}
+        UPDATE_MAJOR_TAG: ${{ inputs.update-major-tag }}
+        MAJOR_TAG: ${{ steps.create-tag.outputs.major-tag }}

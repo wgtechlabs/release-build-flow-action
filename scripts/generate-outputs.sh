@@ -22,6 +22,8 @@
 #   - RELEASE_URL
 #   - RELEASE_UPLOAD_URL
 #   - RELEASE_CREATED
+#   - UPDATE_MAJOR_TAG
+#   - MAJOR_TAG
 #
 # Outputs (via GitHub Actions):
 #   All variables are passed through as outputs
@@ -59,6 +61,9 @@ echo "release-created=${RELEASE_CREATED:-false}" >> $GITHUB_OUTPUT
 echo "release-id=${RELEASE_ID:-}" >> $GITHUB_OUTPUT
 echo "release-url=${RELEASE_URL:-}" >> $GITHUB_OUTPUT
 echo "release-upload-url=${RELEASE_UPLOAD_URL:-}" >> $GITHUB_OUTPUT
+
+# Major version tag output
+echo "major-tag=${MAJOR_TAG:-}" >> $GITHUB_OUTPUT
 
 # Changelog outputs
 echo "changelog-updated=${CHANGELOG_UPDATED:-false}" >> $GITHUB_OUTPUT

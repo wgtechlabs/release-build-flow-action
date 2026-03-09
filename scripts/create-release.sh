@@ -12,6 +12,7 @@
 #   - RELEASE_DRAFT
 #   - RELEASE_PRERELEASE
 #   - CHANGELOG_ENTRY
+#   - PER_PACKAGE_CHANGELOGS  : JSON object mapping package paths to changelog entries (monorepo)
 #
 # Outputs (via GitHub Actions):
 #   - created          : Whether release was created (true/false)
@@ -37,6 +38,10 @@ log_success() {
     echo -e "${GREEN}✅ $1${NC}" >&2
 }
 
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}" >&2
+}
+
 log_error() {
     echo -e "${RED}❌ $1${NC}" >&2
 }
@@ -60,7 +65,12 @@ escape_json_string() {
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 VERSION="${VERSION:-}"
 VERSION_TAG="${VERSION_TAG:-}"
-RELEASE_NAME_TEMPLATE="${RELEASE_NAME_TEMPLATE:-{tag}}"
+# Note: Do NOT use {tag} as a default inside ${...:-} — bash interprets the }
+# inside {tag} as closing the parameter expansion, causing a stray } in output.
+RELEASE_NAME_TEMPLATE="${RELEASE_NAME_TEMPLATE:-}"
+if [[ -z "${RELEASE_NAME_TEMPLATE}" ]]; then
+    RELEASE_NAME_TEMPLATE='{tag}'
+fi
 RELEASE_DRAFT="${RELEASE_DRAFT:-false}"
 RELEASE_PRERELEASE="${RELEASE_PRERELEASE:-false}"
 CHANGELOG_ENTRY="${CHANGELOG_ENTRY:-}"
@@ -80,12 +90,18 @@ generate_release_name() {
     local tag="${3:-}"
     local date=$(date +%Y-%m-%d)
     
-    # Use sed for reliable placeholder replacement
-    # Avoids bash brace-matching issues with \{...\} inside ${//} across shell versions
-    local name
-    name=$(echo "${template}" | sed "s/{version}/${version}/g")
-    name=$(echo "${name}" | sed "s/{tag}/${tag}/g")
-    name=$(echo "${name}" | sed "s/{date}/${date}/g")
+    # Use variable-based patterns to avoid bash brace parsing ambiguity
+    # When \{tag\} is used directly in ${name//\{tag\}/...}, some bash versions
+    # interpret the \} as closing the ${...} expansion prematurely, leaving a
+    # trailing } in the output. Storing patterns in variables avoids this entirely.
+    local p_version='{version}'
+    local p_tag='{tag}'
+    local p_date='{date}'
+    
+    local name="${template}"
+    name="${name//$p_version/${version}}"
+    name="${name//$p_tag/${tag}}"
+    name="${name//$p_date/${date}}"
     
     echo "${name}"
 }
@@ -160,9 +176,11 @@ EOF
 
 MONOREPO="${MONOREPO:-false}"
 PACKAGES_DATA="${PACKAGES_DATA:-[]}"
+PER_PACKAGE_CHANGELOGS="${PER_PACKAGE_CHANGELOGS:-}"
+MONOREPO_ROOT_RELEASE="${MONOREPO_ROOT_RELEASE:-true}"
 
-# Check if we're in monorepo mode - if so, skip root release creation
-if [[ "${MONOREPO}" == "true" ]]; then
+# Check if we should skip root release (monorepo mode without root release enabled)
+if [[ "${MONOREPO}" == "true" ]] && [[ "${MONOREPO_ROOT_RELEASE}" != "true" ]]; then
     log_info "Monorepo mode enabled - skipping root release, will create per-package releases"
     
     # Set outputs for root release (not created in monorepo mode)
@@ -171,7 +189,7 @@ if [[ "${MONOREPO}" == "true" ]]; then
     echo "release-url=" >> $GITHUB_OUTPUT
     echo "release-upload-url=" >> $GITHUB_OUTPUT
 else
-    # Single-package mode: create root release as normal
+    # Single-package mode OR monorepo with root release enabled: create root release
     log_info "Creating GitHub Release for ${VERSION_TAG}..."
     
     # Validate required inputs
@@ -232,8 +250,10 @@ else
         exit 1
     fi
     
-    # Exit for single-package mode
-    exit 0
+    # Exit for single-package mode; monorepo continues to per-package releases
+    if [[ "${MONOREPO}" != "true" ]]; then
+        exit 0
+    fi
 fi
 
 # =============================================================================
@@ -261,12 +281,27 @@ if command -v jq &> /dev/null && [[ "${PACKAGES_DATA}" != "[]" ]]; then
         
         # Get package changelog entry
         pkg_changelog=""
-        if [[ -f "${pkg_path}/CHANGELOG.md" ]]; then
-            # Extract the latest entry from package changelog
+        
+        # Primary: use directly generated per-package changelog entry (avoids file I/O timing issues)
+        if [[ -n "${PER_PACKAGE_CHANGELOGS}" ]] && [[ "${PER_PACKAGE_CHANGELOGS}" != "{}" ]]; then
+            pkg_changelog=$(echo "${PER_PACKAGE_CHANGELOGS}" | jq -r --arg path "${pkg_path}" '.[$path] // empty' 2>/dev/null || echo "")
+            if [[ -n "${pkg_changelog}" ]]; then
+                log_info "Using generated changelog entry for ${pkg_name}"
+            fi
+        fi
+        
+        # Fallback: read from package CHANGELOG.md file
+        if [[ -z "${pkg_changelog}" ]] && [[ -f "${pkg_path}/CHANGELOG.md" ]]; then
             pkg_changelog=$(awk '/^## \[/{if(p)exit;p=1;next}p' "${pkg_path}/CHANGELOG.md" || echo "")
+            if [[ -n "${pkg_changelog}" ]]; then
+                log_info "Using CHANGELOG.md file entry for ${pkg_name}"
+            else
+                log_warning "CHANGELOG.md exists for ${pkg_name} but no entry could be extracted"
+            fi
         fi
         
         if [[ -z "${pkg_changelog}" ]]; then
+            log_warning "No changelog content found for ${pkg_name}, using generic release message"
             pkg_changelog="Release ${pkg_tag}"
         fi
         

@@ -1,11 +1,35 @@
 # Release Build Flow Action 🚀
 
+![GitHub Repo Banner](https://ghrb.waren.build/banner?header=Release+Build+Flow+%F0%9F%9A%9A%E2%99%BB%EF%B8%8F&subheader=Automated+release+creation+and+changelog+maintenance.&bg=016EEA-016EEA&color=FFFFFF&headerfont=Google+Sans+Code&subheaderfont=Sour+Gummy&watermarkpos=bottom-right)
+<!-- Created with GitHub Repo Banner by Waren Gonzaga: https://ghrb.waren.build -->
+
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Release%20Build%20Flow-blue.svg?colorA=24292e&colorB=0366d6&style=flat&longCache=true&logo=github)](https://github.com/marketplace/actions/release-build-flow-action) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Made by WG Tech Labs](https://img.shields.io/badge/made%20by-WG%20Tech%20Labs-0060a0.svg?logo=github&longCache=true&labelColor=181717&style=flat-square)](https://github.com/wgtechlabs)
 
 > **Automated release creation and changelog maintenance using Clean Commit convention and Keep a Changelog format.**  
 > Zero-intervention release automation with deterministic logic—no AI required!
 
 Stop manually managing versions, changelogs, and GitHub Releases. This action automatically detects new commits, determines version bumps using semantic versioning, generates structured changelogs following the Keep a Changelog format, and creates GitHub Releases—all from your Clean Commit messages.
+
+---
+
+## 📑 Table of Contents
+
+- [Why Use This Action?](#-why-use-this-action)
+- [How It Works](#-how-it-works)
+- [Features](#-features)
+- [Commit Type Mapping](#-commit-type-mapping)
+- [Quick Start](#-quick-start)
+- [Inputs](#-inputs)
+- [Monorepo Support](#-monorepo-support)
+- [Outputs](#-outputs)
+- [Examples](#-examples)
+- [Conventional Commit Examples](#-conventional-commit-examples)
+- [Generated CHANGELOG.md Example](#-generated-changelogmd-example)
+- [Development](#-development)
+- [Troubleshooting](#-troubleshooting)
+- [License](#-license)
+- [Contributing](#-contributing)
+- [Acknowledgments](#-acknowledgments)
 
 ---
 
@@ -67,9 +91,9 @@ This action uses conventional commits (Clean Commit convention) and maps them to
 | Commit Type | Changelog Section | Examples |
 |-------------|-------------------|----------|
 | `feat`, `new`, `add` | **Added** | New features, capabilities |
-| `fix`, `bugfix` | **Fixed** | Bug fixes, corrections |
+| `fix`, `bugfix`, `revert` | **Fixed** | Bug fixes, corrections, reverts |
 | `security` | **Security** | Security patches, vulnerability fixes |
-| `perf`, `refactor`, `update`, `change`, `chore` | **Changed** | Performance improvements, refactoring |
+| `perf`, `refactor`, `update`, `change`, `chore`, `setup` | **Changed** | Performance improvements, refactoring, setup tasks |
 | `deprecate` | **Deprecated** | Soon-to-be removed features |
 | `remove`, `delete` | **Removed** | Removed features, deleted code |
 
@@ -139,6 +163,30 @@ jobs:
     tag-only: true
 ```
 
+### Conventional Commits (No Emoji)
+
+```yaml
+- name: Create Release with Conventional Commits
+  uses: wgtechlabs/release-build-flow-action@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    commit-convention: 'conventional'
+```
+
+> **Note:** By default, auto-generated commits (e.g., changelog updates) and tag annotations use Clean Commit convention with emoji prefixes. Set `commit-convention: 'conventional'` to use standard Conventional Commits format instead.
+>
+> The `commit-convention` setting also adjusts smart defaults for version bump keywords and excluded types:
+>
+> | Setting | `clean-commit` (default) | `conventional` |
+> |---|---|---|
+> | Commit format | `☕ chore: ...` | `chore: ...` |
+> | Tag format | `🚀 release: v1.2.0` | `Release v1.2.0` |
+> | `minor-keywords` | `feat,new,add` | `feat` |
+> | `patch-keywords` | `fix,bugfix,security,perf,update,remove` | `fix,perf,revert` |
+> | `exclude-types` | `docs,style,test,ci,build,release` | `docs,style,test,ci,build,chore` |
+>
+> User-provided values always take priority over convention defaults.
+
 ---
 
 ## 📖 Inputs
@@ -161,8 +209,10 @@ jobs:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `version-prefix` | Prefix for version tags (e.g., `v` for `v1.2.3`) | `v` |
-| `initial-version` | Initial version if no tags exist | `0.1.0` |
+| `initial-version` | Initial version if no tags exist (falls back to manifest file version first, then this value) | `0.1.0` |
 | `prerelease-prefix` | Prefix for prerelease versions (e.g., `beta`, `alpha`, `rc`) | `` |
+
+> **Version Resolution:** When no git tags exist, the action checks for a version in manifest files (`package.json`, `Cargo.toml`, `pyproject.toml`, `pubspec.yaml`) in priority order. If a valid SemVer version is found, it is used as the starting version. Otherwise, the `initial-version` input is used as the final fallback.
 
 ### Changelog Configuration
 
@@ -177,7 +227,7 @@ jobs:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `commit-type-mapping` | JSON mapping of commit types to changelog sections | Standard mapping |
-| `exclude-types` | Comma-separated list of commit types to exclude | `docs,style,test,ci,build` |
+| `exclude-types` | Comma-separated list of commit types to exclude | `docs,style,test,ci,build,release` |
 | `exclude-scopes` | Comma-separated list of commit scopes to exclude | `` |
 
 ### Version Bump Rules
@@ -186,7 +236,7 @@ jobs:
 |-------|-------------|---------|
 | `major-keywords` | Keywords that trigger major version bump | `BREAKING CHANGE,BREAKING-CHANGE,breaking` |
 | `minor-keywords` | Keywords that trigger minor version bump | `feat,new,add` |
-| `patch-keywords` | Keywords that trigger patch version bump | `fix,bugfix,security,perf,update,change,chore,setup,remove,delete,deprecate` |
+| `patch-keywords` | Keywords that trigger patch version bump | `fix,bugfix,security,perf,update,remove` |
 
 ### Release Configuration
 
@@ -201,15 +251,24 @@ jobs:
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `git-user-name` | Git user name for commits | `github-actions[bot]` |
-| `git-user-email` | Git user email for commits | `github-actions[bot]@users.noreply.github.com` |
+| `git-user-name` | Git user name for commits | `WG Tech Labs` |
+| `git-user-email` | Git user email for commits | `262751631+wgtechlabs-automation@users.noreply.github.com` |
+| `commit-convention` | Commit message convention for auto-generated commits and smart defaults (`clean-commit` or `conventional`) | `clean-commit` |
+### Version File Sync
 
+| Input | Description | Default |
+|-------|-------------|--------|
+| `sync-version-files` | Automatically update version in manifest files (`package.json`, `Cargo.toml`, `pyproject.toml`, `pubspec.yaml`) | `false` |
+| `version-file-paths` | Comma-separated paths to manifest files to update (auto-detected if not specified) | `` |
+
+> **Note:** Version file sync runs only when `commit-changelog` and `changelog-enabled` are both `true`. The action auto-detects supported manifest files in the repository root when `version-file-paths` is not specified.
 ### Advanced Options
 
 | Input | Description | Default |
 |-------|-------------|---------|
 | `dry-run` | Run without creating tags or releases (testing mode) | `false` |
 | `tag-only` | Only create tag without GitHub Release | `false` |
+| `update-major-tag` | Automatically update major version tag (e.g., `v1`) to point to latest release. Standard practice for GitHub Actions. | `false` |
 | `fetch-depth` | Number of commits to fetch for changelog (0 for all) | `0` |
 | `include-all-commits` | Include all commits in changelog, not just since last tag | `false` |
 
@@ -223,6 +282,7 @@ jobs:
 | `scope-package-mapping` | JSON mapping of commit scopes to package paths (auto-detected if not provided) | `''` |
 | `per-package-changelog` | Generate CHANGELOG.md in each package directory | `true` |
 | `root-changelog` | Generate aggregated CHANGELOG.md at repository root | `true` |
+| `monorepo-root-release` | Create a unified root release (tag, GitHub Release) using the aggregated root CHANGELOG.md alongside per-package releases | `true` |
 | `cascade-bumps` | *(Reserved for future use)* Automatically bump packages that depend on updated packages | `false` |
 | `unified-version` | All packages share a single unified version number | `false` |
 | `package-manager` | Package manager for workspace detection (`npm`, `bun`, `pnpm`, `yarn`) - auto-detected if not specified | `''` |
@@ -258,6 +318,14 @@ When `monorepo: true` is enabled:
 5. **Per-Package Releases** - Creates GitHub releases with scoped tags:
    - `@pkg/core@1.2.0`
    - `@pkg/ui@2.0.1`
+
+6. **Unified Root Release** *(enabled by default via `monorepo-root-release: true`)* - When enabled, creates an additional root-level tag and GitHub Release alongside per-package releases:
+   - Root tag: `v2.1.0`
+   - Root GitHub Release that references:
+     - Aggregated root `CHANGELOG.md` across all packages (if `root-changelog: true`; this aggregation runs regardless of `monorepo-root-release`)
+     - Synced root version files such as `package.json` (if `sync-version-files: true`; version syncing also runs independently of `monorepo-root-release`)
+
+   This root tag and GitHub Release enable downstream workflows (e.g., container builds) that trigger on `release: types: [published]` and filter by semver tag patterns like `v1.2.3` to work correctly. Set `monorepo-root-release: false` to keep only per-package tags/releases while still optionally generating a root `CHANGELOG.md` and syncing version files via `root-changelog` and `sync-version-files`.
 
 ### Monorepo Example
 
@@ -361,6 +429,12 @@ Each package in `packages-updated` includes:
 | `release-id` | GitHub Release ID |
 | `release-url` | GitHub Release URL |
 | `release-upload-url` | GitHub Release upload URL for assets |
+
+### Tag Outputs
+
+| Output | Description |
+|--------|-------------|
+| `major-tag` | The major version tag that was updated (e.g., `v1`). Empty if `update-major-tag` is disabled. |
 
 ### Changelog Outputs
 
@@ -475,6 +549,45 @@ jobs:
       -d '{
         "text": "🚀 New release: ${{ steps.release.outputs.version-tag }}\nAdded: ${{ steps.release.outputs.added-count }}, Fixed: ${{ steps.release.outputs.fixed-count }}\n${{ steps.release.outputs.release-url }}"
       }'
+```
+
+### Example 6: Triggering Downstream Workflows
+
+If you need a GitHub Release to trigger other workflows (e.g., a container build workflow that listens for `release: [published]`), you must use a **PAT or GitHub App token** instead of the default `GITHUB_TOKEN`. Releases created with `GITHUB_TOKEN` will not trigger workflows listening on `release` events (i.e., will not start downstream workflow runs) due to a [GitHub platform limitation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow).
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Release
+        id: release
+        uses: wgtechlabs/release-build-flow-action@v1
+        with:
+          # Use a PAT or GitHub App token so the resulting release
+          # event triggers downstream workflows (e.g., container builds).
+          # GITHUB_TOKEN cannot trigger new workflow runs.
+          github-token: ${{ secrets.GH_PAT }}
+```
+
+The downstream workflow (e.g., `container-build-flow-action`) will then fire normally:
+
+```yaml
+# .github/workflows/container.yml
+on:
+  release:
+    types: [published]  # ✅ Triggered when PAT/App token creates the release
 ```
 
 ---
@@ -667,6 +780,55 @@ permissions:
 - Always use scoped commits: `fix(core): bug description`
 - Set `change-detection: scope` to only use scope-based routing
 - Use `unified-version: true` if you want all packages to share one version
+
+### Downstream workflows not triggered after release
+
+**Cause:** GitHub releases created with the default `${{ secrets.GITHUB_TOKEN }}` [do not trigger other workflows](https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow) in the same repository. This is an intentional GitHub platform limitation to prevent accidental recursive workflow runs.
+
+This affects chained automation such as:
+
+```
+Push to main
+  → release-build-flow-action creates GitHub Release
+  → container-build-flow-action watches release: [published]
+  → ❌ Never triggered because GITHUB_TOKEN created the release
+```
+
+**Solution:** Use a Personal Access Token (PAT) or a [GitHub App token](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow) instead of `GITHUB_TOKEN`:
+
+```yaml
+- name: Create Release
+  uses: wgtechlabs/release-build-flow-action@v1
+  with:
+    github-token: ${{ secrets.GH_PAT }}  # PAT or GitHub App token
+```
+
+> **Note:** GitHub App tokens are the recommended approach for production use—they provide fine-grained permissions, are auditable, and don't depend on an individual user's account. See [Example 6](#example-6-triggering-downstream-workflows) for a full setup.
+
+### Creating a Personal Access Token (PAT)
+
+If you choose to use a PAT instead of a GitHub App token, create a **fine-grained personal access token** with the following **minimum repository permissions**:
+
+| Permission | Access | Why it's needed |
+|------------|--------|------------------|
+| **Contents** | **Read and write** | Push commits (changelog updates), create tags, create releases, and read repository contents |
+| **Metadata** | **Read-only** *(required)* | Access repository metadata (automatically included) |
+
+**Steps:**
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens](https://github.com/settings/personal-access-tokens/new)
+2. Set a descriptive **Token name** (e.g., `release-build-flow`)
+3. Choose an **Expiration** period
+4. Under **Repository access**, select the repositories that use this action
+5. Under **Permissions → Repository permissions**, grant:
+   - **Contents**: Read and write
+   - **Metadata**: Read-only (selected by default)
+6. Click **Generate token** and copy it
+7. Add the token as a repository secret named `GH_PAT`:
+   - Go to your repository → **Settings → Secrets and variables → Actions**
+   - Click **New repository secret**, name it `GH_PAT`, and paste the token
+
+> **Tip:** For organization repositories, an admin may need to approve fine-grained PAT requests depending on the organization's token policy.
 
 ---
 

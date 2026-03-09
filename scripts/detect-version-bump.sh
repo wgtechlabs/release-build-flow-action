@@ -61,15 +61,91 @@ log_debug() {
 VERSION_PREFIX="${VERSION_PREFIX:-v}"
 INITIAL_VERSION="${INITIAL_VERSION:-0.1.0}"
 PRERELEASE_PREFIX="${PRERELEASE_PREFIX:-}"
-MAJOR_KEYWORDS="${MAJOR_KEYWORDS:-BREAKING CHANGE,BREAKING-CHANGE,breaking}"
-MINOR_KEYWORDS="${MINOR_KEYWORDS:-feat,new,add}"
-PATCH_KEYWORDS="${PATCH_KEYWORDS:-fix,bugfix,security,perf}"
+COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
+
+# Convention-aware defaults for version bump keywords
+# User-provided values take priority; these only apply when using defaults
+if [[ "${COMMIT_CONVENTION}" == "conventional" ]]; then
+    MAJOR_KEYWORDS="${MAJOR_KEYWORDS:-BREAKING CHANGE,BREAKING-CHANGE,breaking}"
+    MINOR_KEYWORDS="${MINOR_KEYWORDS:-feat}"
+    PATCH_KEYWORDS="${PATCH_KEYWORDS:-fix,perf,revert}"
+else
+    MAJOR_KEYWORDS="${MAJOR_KEYWORDS:-BREAKING CHANGE,BREAKING-CHANGE,breaking}"
+    MINOR_KEYWORDS="${MINOR_KEYWORDS:-feat,new,add}"
+    PATCH_KEYWORDS="${PATCH_KEYWORDS:-fix,bugfix,security,perf,update,remove}"
+fi
+
 FETCH_DEPTH="${FETCH_DEPTH:-0}"
 INCLUDE_ALL_COMMITS="${INCLUDE_ALL_COMMITS:-false}"
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
+# Detect version from manifest files (package.json, Cargo.toml, pyproject.toml, pubspec.yaml)
+# Returns the version string if found, or empty string
+detect_manifest_version() {
+    local version=""
+
+    # package.json
+    if [[ -z "${version}" ]] && [[ -f "package.json" ]]; then
+        if command -v jq &> /dev/null; then
+            version=$(jq -r '.version // empty' package.json 2>/dev/null || true)
+        else
+            version=$(grep -m1 '"version"' package.json 2>/dev/null | grep -oP '"version"\s*:\s*"\K[^"]+' || true)
+        fi
+        if [[ -n "${version}" ]]; then
+            log_debug "Detected version ${version} from package.json"
+        fi
+    fi
+
+    # Cargo.toml ([package] section)
+    if [[ -z "${version}" ]] && [[ -f "Cargo.toml" ]]; then
+        version=$(awk '
+            /^\[package\]/ { in_pkg=1; next }
+            /^\[/ { in_pkg=0 }
+            in_pkg && /^version[[:space:]]*=/ {
+                match($0, /"[^"]*"/)
+                print substr($0, RSTART+1, RLENGTH-2)
+                exit
+            }
+        ' Cargo.toml 2>/dev/null || true)
+        if [[ -n "${version}" ]]; then
+            log_debug "Detected version ${version} from Cargo.toml"
+        fi
+    fi
+
+    # pyproject.toml ([project] or [tool.poetry] section)
+    if [[ -z "${version}" ]] && [[ -f "pyproject.toml" ]]; then
+        version=$(awk '
+            /^\[project\]/ || /^\[tool\.poetry\]/ { in_section=1; next }
+            /^\[/ { in_section=0 }
+            in_section && /^version[[:space:]]*=/ {
+                match($0, /"[^"]*"/)
+                print substr($0, RSTART+1, RLENGTH-2)
+                exit
+            }
+        ' pyproject.toml 2>/dev/null || true)
+        if [[ -n "${version}" ]]; then
+            log_debug "Detected version ${version} from pyproject.toml"
+        fi
+    fi
+
+    # pubspec.yaml
+    if [[ -z "${version}" ]] && [[ -f "pubspec.yaml" ]]; then
+        version=$(grep -m1 '^version:' pubspec.yaml 2>/dev/null | sed 's/^version:[[:space:]]*//' | sed 's/+.*//' | tr -d "\"'" || true)
+        if [[ -n "${version}" ]]; then
+            log_debug "Detected version ${version} from pubspec.yaml"
+        fi
+    fi
+
+    # Validate that the detected version looks like SemVer
+    if [[ -n "${version}" ]] && [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "${version}"
+    else
+        echo ""
+    fi
+}
 
 # Get latest version tag
 get_latest_tag() {
@@ -233,7 +309,16 @@ if [[ -z "${LATEST_TAG}" ]]; then
     log_warning "No previous version tag found"
     PREVIOUS_VERSION=""
     PREVIOUS_TAG=""
-    CURRENT_VERSION="${INITIAL_VERSION}"
+    
+    # Fallback chain: manifest file version → initial-version input
+    MANIFEST_VERSION=$(detect_manifest_version)
+    if [[ -n "${MANIFEST_VERSION}" ]]; then
+        CURRENT_VERSION="${MANIFEST_VERSION}"
+        log_info "Using version from manifest file: ${CURRENT_VERSION}"
+    else
+        CURRENT_VERSION="${INITIAL_VERSION}"
+        log_info "Using initial version: ${INITIAL_VERSION}"
+    fi
     
     # Check if we have any commits to release
     COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
@@ -241,7 +326,6 @@ if [[ -z "${LATEST_TAG}" ]]; then
         log_warning "No commits to release"
         BUMP_TYPE="none"
     else
-        log_info "Using initial version: ${INITIAL_VERSION}"
         BUMP_TYPE="patch"
     fi
 else
@@ -296,6 +380,10 @@ log_info "Bump Type: ${BUMP_TYPE}"
 
 MONOREPO="${MONOREPO:-false}"
 WORKSPACE_PACKAGES="${WORKSPACE_PACKAGES:-[]}"
+# Load from shared file if available (avoids env var size/encoding issues with large monorepos)
+# shellcheck source=scripts/lib-workspace.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-workspace.sh"
+load_workspace_packages
 CHANGE_DETECTION="${CHANGE_DETECTION:-both}"
 SCOPE_PACKAGE_MAPPING="${SCOPE_PACKAGE_MAPPING:-}"
 UNIFIED_VERSION="${UNIFIED_VERSION:-false}"
@@ -305,7 +393,47 @@ if [[ "${MONOREPO}" != "true" ]]; then
     exit 0
 fi
 
+# Validate WORKSPACE_PACKAGES is a JSON array of objects (not strings or a non-array).
+# If malformed, fall back to empty so jq operations are safely skipped.
+if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+    pkg_valid=$(echo "${WORKSPACE_PACKAGES}" | jq -r '
+        if type != "array" then "false"
+        elif length == 0 then "true"
+        elif all(type == "object") then "true"
+        else "false"
+        end
+    ' 2>/dev/null || echo "false")
+    if [[ "${pkg_valid}" != "true" ]]; then
+        log_warning "WORKSPACE_PACKAGES is not a valid array of package objects, ignoring"
+        WORKSPACE_PACKAGES="[]"
+    fi
+fi
+
 log_info "Processing monorepo packages..."
+
+# Validate WORKSPACE_PACKAGES format
+if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
+    WP_FIRST_TYPE=$(echo "${WORKSPACE_PACKAGES}" | jq -r '.[0] | type' 2>/dev/null || echo "invalid")
+    if [[ "${WP_FIRST_TYPE}" != "object" ]]; then
+        log_warning "WORKSPACE_PACKAGES has '${WP_FIRST_TYPE}' elements instead of objects - skipping monorepo version detection"
+        log_debug "WORKSPACE_PACKAGES value (first 200 chars): ${WORKSPACE_PACKAGES:0:200}"
+        # Output minimal packages-data so downstream steps don't fail
+        echo "packages-data=[]" >> $GITHUB_OUTPUT
+        exit 0
+    fi
+fi
+
+log_debug "WORKSPACE_PACKAGES (first 200 chars): ${WORKSPACE_PACKAGES:0:200}"
+
+# Write WORKSPACE_PACKAGES to a temp file for reliable jq operations
+# (avoids potential issues with echo piping large multi-line variables)
+WORKSPACE_TMPFILE=$(mktemp)
+if [[ -n "${WORKSPACE_PACKAGES_FILE:-}" && -f "${WORKSPACE_PACKAGES_FILE}" ]]; then
+    cp "${WORKSPACE_PACKAGES_FILE}" "${WORKSPACE_TMPFILE}"
+else
+    printf '%s\n' "${WORKSPACE_PACKAGES}" > "${WORKSPACE_TMPFILE}"
+fi
+trap 'rm -f "${WORKSPACE_TMPFILE}"' EXIT
 
 # Helper function to detect package from commit scope
 get_package_from_scope() {
@@ -327,7 +455,7 @@ get_package_from_scope() {
     
     # Try to match scope with package scope from workspace packages
     if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
-        local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg scope "${scope}" '.[] | select(.scope == $scope) | .path' | head -1)
+        local pkg_path=$(jq -r --arg scope "${scope}" '.[] | objects | select(.scope == $scope) | .path' "${WORKSPACE_TMPFILE}" | head -1)
         if [[ -n "${pkg_path}" ]]; then
             echo "${pkg_path}"
             return
@@ -355,7 +483,7 @@ get_packages_from_files() {
         [[ -z "${file}" ]] && continue
         
         # Find which package this file belongs to
-        local pkg_path=$(echo "${WORKSPACE_PACKAGES}" | jq -r --arg file "${file}" '.[] | select(($file == .path) or ($file | startswith(.path + "/"))) | .path' | head -1)
+        local pkg_path=$(jq -r --arg file "${file}" '.[] | objects | select(.path as $p | ($file == $p) or ($file | startswith($p + "/"))) | .path' "${WORKSPACE_TMPFILE}" | head -1)
         if [[ -n "${pkg_path}" ]]; then
             packages+=("${pkg_path}")
         fi
@@ -383,7 +511,7 @@ if [[ "${UNIFIED_VERSION}" == "true" ]]; then
     if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
         while IFS= read -r pkg_path; do
             PACKAGE_BUMPS["${pkg_path}"]="${BUMP_TYPE}"
-        done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+        done < <(jq -r '.[] | objects | select(.private != true) | .path' "${WORKSPACE_TMPFILE}")
     fi
 else
     # Determine per-package version bumps
@@ -396,7 +524,7 @@ else
         # Strip leading emoji and whitespace before parsing
         # Use bash parameter expansion instead of sed to avoid binary-file detection
         # issues with 4-byte UTF-8 emoji sequences
-        local prefix="${subject%%[a-zA-Z]*}"
+        prefix="${subject%%[a-zA-Z]*}"
         cleaned_subject="${subject#"$prefix"}"
         
         # Extract scope from conventional commit
@@ -459,7 +587,7 @@ else
                 if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
                     while IFS= read -r pkg_path; do
                         affected_packages+=("${pkg_path}")
-                    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+                    done < <(jq -r '.[] | objects | select(.private != true) | .path' "${WORKSPACE_TMPFILE}")
                 fi
             fi
             
@@ -486,7 +614,7 @@ FIRST=true
 
 if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
     while IFS= read -r pkg_path; do
-        pkg_info=$(echo "${WORKSPACE_PACKAGES}" | jq --arg path "${pkg_path}" '.[] | select(.path == $path)')
+        pkg_info=$(jq --arg path "${pkg_path}" '.[] | objects | select(.path == $path)' "${WORKSPACE_TMPFILE}")
         pkg_name=$(echo "${pkg_info}" | jq -r '.name')
         pkg_version=$(echo "${pkg_info}" | jq -r '.version')
         bump_type="${PACKAGE_BUMPS[${pkg_path}]:-none}"
@@ -517,7 +645,7 @@ if command -v jq &> /dev/null && [[ "${WORKSPACE_PACKAGES}" != "[]" ]]; then
             --arg bumpType "${bump_type}" \
             --arg tag "${pkg_tag}" \
             '{name: $name, path: $path, oldVersion: $version, version: $newVersion, bumpType: $bumpType, tag: $tag}')
-    done < <(echo "${WORKSPACE_PACKAGES}" | jq -r '.[].path')
+    done < <(jq -r '.[] | objects | select(.private != true) | .path' "${WORKSPACE_TMPFILE}")
 fi
 
 PACKAGES_DATA="${PACKAGES_DATA}]"

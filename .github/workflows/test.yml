@@ -27,3 +27,27 @@ jobs:
       
       - name: Run setup type tests
         run: bash tests/test_setup_type.sh
+      
+      - name: Run sync version files tests
+        run: bash tests/test_sync_version_files.sh
+      
+      - name: Run per-package bump tests
+        run: bash tests/test_per_package_bump.sh
+      
+      - name: Run workspace packages validation tests
+        run: bash tests/test_workspace_packages_validation.sh
+      
+      - name: Run detect manifest version tests
+        run: bash tests/test_detect_manifest_version.sh
+      
+      - name: Run workspace detection tests
+        run: bash tests/test_workspace_detection.sh
+      
+      - name: Run lib-workspace tests
+        run: bash tests/test_lib_workspace.sh
+      
+      - name: Run private package filter tests
+        run: bash tests/test_private_package_filter.sh
+      
+      - name: Run monorepo root release tests
+        run: bash tests/test_monorepo_root_release.sh
