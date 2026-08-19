@@ -163,11 +163,11 @@ jobs:
 | Input | Description | Default |
 | --- | --- | --- |
 | `version-prefix` | Prefix for release tags | `v` |
-| `initial-version` | Fallback version when no tags or manifest version exist | `0.1.0` |
-| `planned-version` | Immutable release version to use instead of recalculating it. Requires the other `planned-*` inputs. | `` |
+| `initial-version` | Fallback version when no tags or manifest version exist. Uses plain `X.Y.Z`. | `0.1.0` |
+| `planned-version` | Immutable release version to use instead of recalculating it. Requires the other `planned-*` inputs and uses plain `X.Y.Z`. | `` |
 | `planned-version-tag` | Immutable release tag to use instead of recalculating it. Must equal `${version-prefix}${planned-version}`. | `` |
 | `planned-version-bump-type` | Immutable release bump type to use instead of recalculating it. Must be `major`, `minor`, or `patch`. | `` |
-| `planned-previous-version` | Immutable previous release version paired with the planned release. Requires the other `planned-*` inputs. | `` |
+| `planned-previous-version` | Immutable previous release version paired with the planned release. Requires the other `planned-*` inputs and uses plain `X.Y.Z`. | `` |
 | `prerelease-prefix` | Prefix for prerelease versions | `` |
 | `major-keywords` | Comma-separated keywords that trigger major bumps | `BREAKING CHANGE,BREAKING-CHANGE,breaking` |
 | `minor-keywords` | Comma-separated keywords that trigger minor bumps, empty uses convention-aware defaults | `` |
@@ -512,7 +512,7 @@ bash run-tests.sh
 
 ### Planned Release Finalization
 
-Use a dry run first to capture the computed release plan from the action outputs, then pass the approved values back on the final run so the release is immutable even if new commits land before finalization. This two-phase flow applies only when the dry run returns an existing `previous-version` from a repository that already has a prior release. For a first release with no prior tag, omit all `planned-*` inputs and let the normal calculated-release path determine the version.
+Use a dry run first to capture the computed release plan from the action outputs, then pass the approved values back on the final run so the release is immutable even if new commits land before finalization. The planned values must use the action's supported release format (`X.Y.Z`); prerelease or build suffixes are not supported here. This two-phase flow applies only when the dry run returns an existing `previous-version` from a repository that already has a prior release. For a first release with no prior tag, omit all `planned-*` inputs and let the normal calculated-release path determine the version.
 
 ```yaml
 - id: plan

@@ -80,7 +80,7 @@ run_failure_test "Validation fails for invalid initial-version" \
     CURRENT_BRANCH=main \
     INITIAL_VERSION=1.2
 
-run_success_test "Validation accepts SemVer initial-version with prerelease and build metadata" \
+run_failure_test "Validation rejects initial-version with prerelease and build metadata" \
     run_validate \
     MAIN_BRANCH=main \
     CURRENT_BRANCH=main \
@@ -97,7 +97,7 @@ run_success_test "Validation accepts complete planned release inputs" \
     PLANNED_VERSION_BUMP_TYPE=major \
     PLANNED_PREVIOUS_VERSION=1.9.0
 
-run_success_test "Validation accepts planned SemVer with prerelease and build metadata" \
+run_failure_test "Validation rejects planned release values with prerelease and build metadata" \
     run_validate \
     MAIN_BRANCH=main \
     CURRENT_BRANCH=main \

@@ -140,28 +140,6 @@ assert_output "Legacy detection still reports previous version" "${legacy_repo}/
 assert_output "Legacy detection still reports previous tag" "${legacy_repo}/github-output.txt" "previous-tag" "v1.0.0"
 assert_output "Legacy detection still reports bump type" "${legacy_repo}/github-output.txt" "version-bump-type" "patch"
 
-prerelease_repo="${TEST_ROOT}/prerelease"
-create_repo "${prerelease_repo}" "fix: prepare beta release"
-run_detect "${prerelease_repo}" \
-    VERSION_PREFIX=v \
-    INITIAL_VERSION=0.1.0 \
-    PRERELEASE_PREFIX=beta
-
-assert_output "Dry-run detects prerelease version" "${prerelease_repo}/github-output.txt" "version" "1.0.1-beta"
-assert_output "Dry-run detects prerelease tag" "${prerelease_repo}/github-output.txt" "version-tag" "v1.0.1-beta"
-assert_output "Dry-run keeps prerelease previous version" "${prerelease_repo}/github-output.txt" "previous-version" "1.0.0"
-assert_output "Dry-run keeps prerelease bump type" "${prerelease_repo}/github-output.txt" "version-bump-type" "patch"
-assert_success "Finalization accepts planned values captured from prerelease dry-run" \
-    run_validate \
-    MAIN_BRANCH=main \
-    CURRENT_BRANCH=main \
-    VERSION_PREFIX=v \
-    INITIAL_VERSION=0.1.0 \
-    PLANNED_VERSION="$(get_output_value "${prerelease_repo}/github-output.txt" "version")" \
-    PLANNED_VERSION_TAG="$(get_output_value "${prerelease_repo}/github-output.txt" "version-tag")" \
-    PLANNED_VERSION_BUMP_TYPE="$(get_output_value "${prerelease_repo}/github-output.txt" "version-bump-type")" \
-    PLANNED_PREVIOUS_VERSION="$(get_output_value "${prerelease_repo}/github-output.txt" "previous-version")"
-
 echo ""
 echo "=== Results: ${passed_count}/${test_count} passed ==="
 

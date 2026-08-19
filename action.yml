@@ -26,12 +26,12 @@ inputs:
     default: 'v'
   
   initial-version:
-    description: 'Initial version if no tags exist'
+    description: 'Initial version if no tags exist (plain X.Y.Z)'
     required: false
     default: '0.1.0'
 
   planned-version:
-    description: 'Immutable release version to use instead of recalculating it'
+    description: 'Immutable release version to use instead of recalculating it (plain X.Y.Z)'
     required: false
     default: ''
 
@@ -46,7 +46,7 @@ inputs:
     default: ''
 
   planned-previous-version:
-    description: 'Immutable previous release version paired with the planned release'
+    description: 'Immutable previous release version paired with the planned release (plain X.Y.Z)'
     required: false
     default: ''
   

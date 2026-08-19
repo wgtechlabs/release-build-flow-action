@@ -39,14 +39,14 @@ log_warning() {
     echo -e "${YELLOW}⚠️  $1${NC}" >&2
 }
 
-SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
 
 validate_semver() {
     local value="$1"
     local name="$2"
 
     if ! [[ "${value}" =~ ${SEMVER_PATTERN} ]]; then
-        log_error "${name} must be valid SemVer (e.g., 0.1.0 or 1.2.3-beta.1+build.5)"
+        log_error "${name} must be plain X.Y.Z (e.g., 0.1.0 or 1.2.3)"
         exit 1
     fi
 }
