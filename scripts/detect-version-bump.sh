@@ -312,6 +312,13 @@ log_info "Detecting version bump type..."
 
 # Use immutable planned values when provided
 if [[ -n "${PLANNED_VERSION}" ]] && [[ -n "${PLANNED_VERSION_TAG}" ]] && [[ -n "${PLANNED_VERSION_BUMP_TYPE}" ]] && [[ -n "${PLANNED_PREVIOUS_VERSION}" ]]; then
+    if [[ -n "${PRERELEASE_PREFIX}" ]]; then
+        log_error "prerelease-prefix cannot be combined with planned release inputs"
+        log_error "Planned release finalization publishes the planned version verbatim"
+        log_error "Remove prerelease-prefix or plan a prerelease version instead"
+        exit 1
+    fi
+
     PREVIOUS_VERSION="${PLANNED_PREVIOUS_VERSION}"
     PREVIOUS_TAG="${VERSION_PREFIX}${PLANNED_PREVIOUS_VERSION}"
     CURRENT_VERSION="${PLANNED_VERSION}"

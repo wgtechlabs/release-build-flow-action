@@ -125,21 +125,6 @@ assert_output() {
     fi
 }
 
-assert_success() {
-    local test_name="$1"
-    shift
-
-    test_count=$((test_count + 1))
-
-    if "$@"; then
-        echo -e "${GREEN}✓${NC} Test ${test_count}: ${test_name}"
-        passed_count=$((passed_count + 1))
-    else
-        echo -e "${RED}✗${NC} Test ${test_count}: ${test_name}"
-        failed_count=$((failed_count + 1))
-    fi
-}
-
 echo "=== Testing planned release outputs ==="
 echo ""
 
@@ -164,6 +149,17 @@ create_repo "${missing_tag_repo}" "feat: finalize planned release"
 assert_detect_failure "Planned release fails when planned previous tag is unavailable" "${missing_tag_repo}" "Planned previous tag v1.9.0 is unavailable after fetching tags" \
     VERSION_PREFIX=v \
     INITIAL_VERSION=0.1.0 \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0
+
+prerelease_conflict_repo="${TEST_ROOT}/prerelease-conflict"
+create_repo "${prerelease_conflict_repo}" "feat: finalize planned release" "v1.9.0"
+assert_detect_failure "Planned release fails when prerelease-prefix is also set" "${prerelease_conflict_repo}" "prerelease-prefix cannot be combined with planned release inputs" \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=0.1.0 \
+    PRERELEASE_PREFIX=beta \
     PLANNED_VERSION=2.0.0 \
     PLANNED_VERSION_TAG=v2.0.0 \
     PLANNED_VERSION_BUMP_TYPE=major \
