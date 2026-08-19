@@ -80,6 +80,112 @@ run_failure_test "Validation fails for invalid initial-version" \
     CURRENT_BRANCH=main \
     INITIAL_VERSION=1.2
 
+run_failure_test "Validation rejects initial-version with prerelease and build metadata" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    INITIAL_VERSION=1.2.3-beta.1+build.5
+
+run_success_test "Validation accepts complete planned release inputs" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0
+
+run_success_test "Validation accepts planned release inputs for unified-version monorepos" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    MONOREPO=true \
+    UNIFIED_VERSION=true \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0
+
+run_failure_test "Validation rejects planned release inputs for per-package monorepos" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    MONOREPO=true \
+    UNIFIED_VERSION=false \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0
+
+run_failure_test "Validation rejects planned release values with prerelease and build metadata" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    PLANNED_VERSION=2.0.0-beta.1+build.7 \
+    PLANNED_VERSION_TAG=v2.0.0-beta.1+build.7 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0-rc.1+build.2
+
+run_failure_test "Validation fails when planned release inputs are incomplete" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    PLANNED_VERSION=2.0.0
+
+run_failure_test "Validation fails for invalid planned release semver" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    PLANNED_VERSION=2.0 \
+    PLANNED_VERSION_TAG=v2.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0
+
+run_failure_test "Validation fails for invalid planned previous version" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9
+
+run_failure_test "Validation fails for invalid planned bump type" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=prerelease \
+    PLANNED_PREVIOUS_VERSION=1.9.0
+
+run_failure_test "Validation fails when planned release tag mismatches prefix and version" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=release-2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0
+
 echo ""
 echo "=== Results: ${passed_count}/${test_count} passed ==="
 
