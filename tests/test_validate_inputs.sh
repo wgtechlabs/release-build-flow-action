@@ -97,6 +97,32 @@ run_success_test "Validation accepts complete planned release inputs" \
     PLANNED_VERSION_BUMP_TYPE=major \
     PLANNED_PREVIOUS_VERSION=1.9.0
 
+run_success_test "Validation accepts planned release inputs for unified-version monorepos" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    MONOREPO=true \
+    UNIFIED_VERSION=true \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0
+
+run_failure_test "Validation rejects planned release inputs for per-package monorepos" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    MONOREPO=true \
+    UNIFIED_VERSION=false \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0
+
 run_failure_test "Validation rejects planned release values with prerelease and build metadata" \
     run_validate \
     MAIN_BRANCH=main \

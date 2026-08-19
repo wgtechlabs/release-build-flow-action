@@ -12,6 +12,8 @@
 #   - PLANNED_VERSION_TAG
 #   - PLANNED_VERSION_BUMP_TYPE
 #   - PLANNED_PREVIOUS_VERSION
+#   - MONOREPO
+#   - UNIFIED_VERSION
 # =============================================================================
 
 set -euo pipefail
@@ -109,6 +111,11 @@ if [[ "${planned_input_count}" -eq 4 ]]; then
     expected_planned_tag="${VERSION_PREFIX:-}${PLANNED_VERSION}"
     if [[ "${PLANNED_VERSION_TAG}" != "${expected_planned_tag}" ]]; then
         log_error "planned-version-tag must match ${expected_planned_tag}"
+        exit 1
+    fi
+
+    if [[ "${MONOREPO:-false}" == "true" ]] && [[ "${UNIFIED_VERSION:-false}" != "true" ]]; then
+        log_error "planned-* inputs are supported only for single-package releases and monorepos with unified-version=true"
         exit 1
     fi
 fi

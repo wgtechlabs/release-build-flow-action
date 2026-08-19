@@ -25,6 +25,7 @@ trap cleanup EXIT
 create_repo() {
     local repo_dir="$1"
     local commit_subject="$2"
+    local initial_tag="${3:-v1.0.0}"
 
     rm -rf "${repo_dir}"
     mkdir -p "${repo_dir}"
@@ -41,7 +42,7 @@ create_repo() {
 EOF
         git add README.md
         git commit --quiet -m "chore: initial release"
-        git tag v1.0.0
+        git tag "${initial_tag}"
 
         printf '\n%s\n' "${commit_subject}" >> README.md
         git add README.md
@@ -60,6 +61,41 @@ run_detect() {
         cd "${repo_dir}"
         env GITHUB_OUTPUT="${output_file}" "$@" bash "${DETECT_SCRIPT}" >/dev/null 2>&1
     )
+}
+
+assert_detect_failure() {
+    local test_name="$1"
+    local repo_dir="$2"
+    local expected_message="$3"
+    shift 3
+
+    local output_file="${repo_dir}/github-output.txt"
+    local stderr_file="${repo_dir}/detect-stderr.txt"
+    : > "${output_file}"
+    : > "${stderr_file}"
+
+    test_count=$((test_count + 1))
+
+    if (
+        cd "${repo_dir}"
+        env GITHUB_OUTPUT="${output_file}" "$@" bash "${DETECT_SCRIPT}" >/dev/null 2>"${stderr_file}"
+    ); then
+        echo -e "${RED}✗${NC} Test ${test_count}: ${test_name}"
+        echo "  Expected detect-version-bump.sh to fail"
+        failed_count=$((failed_count + 1))
+        return
+    fi
+
+    if grep -Fq "${expected_message}" "${stderr_file}"; then
+        echo -e "${GREEN}✓${NC} Test ${test_count}: ${test_name}"
+        passed_count=$((passed_count + 1))
+    else
+        echo -e "${RED}✗${NC} Test ${test_count}: ${test_name}"
+        echo "  Expected error containing: [${expected_message}]"
+        echo "  Error output:"
+        sed 's/^/    /' "${stderr_file}"
+        failed_count=$((failed_count + 1))
+    fi
 }
 
 run_validate() {
@@ -113,7 +149,7 @@ echo "=== Testing planned release outputs ==="
 echo ""
 
 planned_repo="${TEST_ROOT}/planned"
-create_repo "${planned_repo}" "feat: add release planning mode"
+create_repo "${planned_repo}" "feat: add release planning mode" "v1.9.0"
 run_detect "${planned_repo}" \
     VERSION_PREFIX=v \
     INITIAL_VERSION=0.1.0 \
@@ -127,6 +163,16 @@ assert_output "Planned release uses provided tag" "${planned_repo}/github-output
 assert_output "Planned release uses provided previous version" "${planned_repo}/github-output.txt" "previous-version" "1.9.0"
 assert_output "Planned release exposes derived previous tag" "${planned_repo}/github-output.txt" "previous-tag" "v1.9.0"
 assert_output "Planned release uses provided bump type" "${planned_repo}/github-output.txt" "version-bump-type" "major"
+
+missing_tag_repo="${TEST_ROOT}/missing-tag"
+create_repo "${missing_tag_repo}" "feat: finalize planned release"
+assert_detect_failure "Planned release fails when planned previous tag is unavailable" "${missing_tag_repo}" "Planned previous tag v1.9.0 is unavailable after fetching tags" \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=0.1.0 \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0
 
 legacy_repo="${TEST_ROOT}/legacy"
 create_repo "${legacy_repo}" "fix: resolve release detection bug"

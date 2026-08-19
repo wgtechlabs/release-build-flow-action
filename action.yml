@@ -343,6 +343,7 @@ runs:
         PLANNED_VERSION_BUMP_TYPE: ${{ inputs.planned-version-bump-type }}
         PLANNED_PREVIOUS_VERSION: ${{ inputs.planned-previous-version }}
         MONOREPO: ${{ inputs.monorepo }}
+        UNIFIED_VERSION: ${{ inputs.unified-version }}
     
     - name: Detect Version Bump
       id: detect-version

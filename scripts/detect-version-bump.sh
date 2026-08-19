@@ -154,10 +154,8 @@ detect_manifest_version() {
 # Get latest version tag
 get_latest_tag() {
     local prefix="${VERSION_PREFIX}"
-    
-    # Always fetch tags to ensure version detection sees all tags,
-    # regardless of FETCH_DEPTH / clone depth.
-    git fetch --tags --quiet 2>/dev/null || true
+
+    fetch_tags
     
     # Get all tags matching version pattern
     local tags=$(git tag -l "${prefix}*" 2>/dev/null | grep -E "^${prefix}[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1)
@@ -167,6 +165,12 @@ get_latest_tag() {
     else
         echo "${tags}"
     fi
+}
+
+fetch_tags() {
+    # Always fetch tags to ensure version detection sees all tags,
+    # regardless of FETCH_DEPTH / clone depth.
+    git fetch --tags --quiet 2>/dev/null || true
 }
 
 # Extract version from tag
@@ -314,6 +318,13 @@ if [[ -n "${PLANNED_VERSION}" ]] && [[ -n "${PLANNED_VERSION_TAG}" ]] && [[ -n "
     CURRENT_TAG="${PLANNED_VERSION_TAG}"
     BUMP_TYPE="${PLANNED_VERSION_BUMP_TYPE}"
     LATEST_TAG="${PREVIOUS_TAG}"
+
+    fetch_tags
+    if ! git rev-parse -q --verify "refs/tags/${PREVIOUS_TAG}" >/dev/null 2>&1; then
+        log_error "Planned previous tag ${PREVIOUS_TAG} is unavailable after fetching tags"
+        log_error "Planned release finalization requires an existing prior release tag"
+        exit 1
+    fi
 
     log_info "Using planned release values"
     log_info "Planned version: ${CURRENT_VERSION}"
