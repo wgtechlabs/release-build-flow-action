@@ -9,7 +9,6 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DETECT_SCRIPT="${SCRIPT_DIR}/../scripts/detect-version-bump.sh"
-VALIDATE_SCRIPT="${SCRIPT_DIR}/../scripts/validate-inputs.sh"
 TEST_ROOT="${SCRIPT_DIR}/.scratch/test_planned_release_outputs"
 
 test_count=0
@@ -96,10 +95,6 @@ assert_detect_failure() {
         sed 's/^/    /' "${stderr_file}"
         failed_count=$((failed_count + 1))
     fi
-}
-
-run_validate() {
-    env "$@" bash "${VALIDATE_SCRIPT}" >/dev/null 2>&1
 }
 
 get_output_value() {

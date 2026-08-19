@@ -110,7 +110,7 @@ if [[ "${planned_input_count}" -eq 4 ]]; then
 
     expected_planned_tag="${VERSION_PREFIX:-}${PLANNED_VERSION}"
     if [[ "${PLANNED_VERSION_TAG}" != "${expected_planned_tag}" ]]; then
-        log_error "planned-version-tag must match ${expected_planned_tag}"
+        log_error "planned-version-tag must match ${expected_planned_tag} (got: ${PLANNED_VERSION_TAG})"
         exit 1
     fi
 
