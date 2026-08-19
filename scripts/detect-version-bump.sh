@@ -337,7 +337,7 @@ else
         log_warning "No previous version tag found"
         PREVIOUS_VERSION=""
         PREVIOUS_TAG=""
-        
+
         # Fallback chain: manifest file version → initial-version input
         MANIFEST_VERSION=$(detect_manifest_version)
         if [[ -n "${MANIFEST_VERSION}" ]]; then
@@ -347,7 +347,7 @@ else
             CURRENT_VERSION="${INITIAL_VERSION}"
             log_info "Using initial version: ${INITIAL_VERSION}"
         fi
-        
+
         # Check if we have any commits to release
         COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
         if [[ "${COMMIT_COUNT}" == "0" ]]; then
@@ -363,7 +363,7 @@ else
         
         # Check if there are commits since last tag
         COMMIT_COUNT=$(git rev-list --count "${LATEST_TAG}..HEAD" 2>/dev/null || echo "0")
-        
+
         if [[ "${COMMIT_COUNT}" == "0" ]]; then
             log_warning "No new commits since ${LATEST_TAG}"
             CURRENT_VERSION="${PREVIOUS_VERSION}"
@@ -371,7 +371,7 @@ else
         else
             # Determine bump type from commits streamed as NUL-delimited data
             BUMP_TYPE=$(get_commits_since_tag "${LATEST_TAG}" | determine_bump_type)
-            
+
             if [[ "${BUMP_TYPE}" == "none" ]]; then
                 log_warning "No version-bumping commits found"
                 CURRENT_VERSION="${PREVIOUS_VERSION}"
