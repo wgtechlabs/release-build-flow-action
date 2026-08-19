@@ -9,6 +9,7 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DETECT_SCRIPT="${SCRIPT_DIR}/../scripts/detect-version-bump.sh"
+VALIDATE_SCRIPT="${SCRIPT_DIR}/../scripts/validate-inputs.sh"
 TEST_ROOT="${SCRIPT_DIR}/.scratch/test_planned_release_outputs"
 
 test_count=0
@@ -61,6 +62,17 @@ run_detect() {
     )
 }
 
+run_validate() {
+    env "$@" bash "${VALIDATE_SCRIPT}" >/dev/null 2>&1
+}
+
+get_output_value() {
+    local output_file="$1"
+    local key="$2"
+
+    grep -E "^${key}=" "${output_file}" | tail -n 1 | cut -d'=' -f2- || true
+}
+
 assert_output() {
     local test_name="$1"
     local output_file="$2"
@@ -69,7 +81,7 @@ assert_output() {
     local actual
 
     test_count=$((test_count + 1))
-    actual="$(grep -E "^${key}=" "${output_file}" | tail -n 1 | cut -d'=' -f2- || true)"
+    actual="$(get_output_value "${output_file}" "${key}")"
 
     if [[ "${actual}" == "${expected}" ]]; then
         echo -e "${GREEN}✓${NC} Test ${test_count}: ${test_name}"
@@ -78,6 +90,21 @@ assert_output() {
         echo -e "${RED}✗${NC} Test ${test_count}: ${test_name}"
         echo "  Expected: [${expected}]"
         echo "  Got:      [${actual}]"
+        failed_count=$((failed_count + 1))
+    fi
+}
+
+assert_success() {
+    local test_name="$1"
+    shift
+
+    test_count=$((test_count + 1))
+
+    if "$@"; then
+        echo -e "${GREEN}✓${NC} Test ${test_count}: ${test_name}"
+        passed_count=$((passed_count + 1))
+    else
+        echo -e "${RED}✗${NC} Test ${test_count}: ${test_name}"
         failed_count=$((failed_count + 1))
     fi
 }
@@ -112,6 +139,28 @@ assert_output "Legacy detection still calculates tag" "${legacy_repo}/github-out
 assert_output "Legacy detection still reports previous version" "${legacy_repo}/github-output.txt" "previous-version" "1.0.0"
 assert_output "Legacy detection still reports previous tag" "${legacy_repo}/github-output.txt" "previous-tag" "v1.0.0"
 assert_output "Legacy detection still reports bump type" "${legacy_repo}/github-output.txt" "version-bump-type" "patch"
+
+prerelease_repo="${TEST_ROOT}/prerelease"
+create_repo "${prerelease_repo}" "fix: prepare beta release"
+run_detect "${prerelease_repo}" \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=0.1.0 \
+    PRERELEASE_PREFIX=beta
+
+assert_output "Dry-run detects prerelease version" "${prerelease_repo}/github-output.txt" "version" "1.0.1-beta"
+assert_output "Dry-run detects prerelease tag" "${prerelease_repo}/github-output.txt" "version-tag" "v1.0.1-beta"
+assert_output "Dry-run keeps prerelease previous version" "${prerelease_repo}/github-output.txt" "previous-version" "1.0.0"
+assert_output "Dry-run keeps prerelease bump type" "${prerelease_repo}/github-output.txt" "version-bump-type" "patch"
+assert_success "Finalization accepts planned values captured from prerelease dry-run" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=0.1.0 \
+    PLANNED_VERSION="$(get_output_value "${prerelease_repo}/github-output.txt" "version")" \
+    PLANNED_VERSION_TAG="$(get_output_value "${prerelease_repo}/github-output.txt" "version-tag")" \
+    PLANNED_VERSION_BUMP_TYPE="$(get_output_value "${prerelease_repo}/github-output.txt" "version-bump-type")" \
+    PLANNED_PREVIOUS_VERSION="$(get_output_value "${prerelease_repo}/github-output.txt" "previous-version")"
 
 echo ""
 echo "=== Results: ${passed_count}/${test_count} passed ==="

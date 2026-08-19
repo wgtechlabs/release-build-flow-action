@@ -80,6 +80,12 @@ run_failure_test "Validation fails for invalid initial-version" \
     CURRENT_BRANCH=main \
     INITIAL_VERSION=1.2
 
+run_success_test "Validation accepts SemVer initial-version with prerelease and build metadata" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    INITIAL_VERSION=1.2.3-beta.1+build.5
+
 run_success_test "Validation accepts complete planned release inputs" \
     run_validate \
     MAIN_BRANCH=main \
@@ -90,6 +96,17 @@ run_success_test "Validation accepts complete planned release inputs" \
     PLANNED_VERSION_TAG=v2.0.0 \
     PLANNED_VERSION_BUMP_TYPE=major \
     PLANNED_PREVIOUS_VERSION=1.9.0
+
+run_success_test "Validation accepts planned SemVer with prerelease and build metadata" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    PLANNED_VERSION=2.0.0-beta.1+build.7 \
+    PLANNED_VERSION_TAG=v2.0.0-beta.1+build.7 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=1.9.0-rc.1+build.2
 
 run_failure_test "Validation fails when planned release inputs are incomplete" \
     run_validate \
