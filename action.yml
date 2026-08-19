@@ -29,6 +29,26 @@ inputs:
     description: 'Initial version if no tags exist'
     required: false
     default: '0.1.0'
+
+  planned-version:
+    description: 'Immutable release version to use instead of recalculating it'
+    required: false
+    default: ''
+
+  planned-version-tag:
+    description: 'Immutable release tag to use instead of recalculating it'
+    required: false
+    default: ''
+
+  planned-version-bump-type:
+    description: 'Immutable release bump type to use instead of recalculating it'
+    required: false
+    default: ''
+
+  planned-previous-version:
+    description: 'Immutable previous release version paired with the planned release'
+    required: false
+    default: ''
   
   prerelease-prefix:
     description: 'Prefix for prerelease versions (e.g., beta, alpha, rc)'
@@ -318,6 +338,10 @@ runs:
         MAIN_BRANCH: ${{ inputs.main-branch }}
         VERSION_PREFIX: ${{ inputs.version-prefix }}
         INITIAL_VERSION: ${{ inputs.initial-version }}
+        PLANNED_VERSION: ${{ inputs.planned-version }}
+        PLANNED_VERSION_TAG: ${{ inputs.planned-version-tag }}
+        PLANNED_VERSION_BUMP_TYPE: ${{ inputs.planned-version-bump-type }}
+        PLANNED_PREVIOUS_VERSION: ${{ inputs.planned-previous-version }}
         MONOREPO: ${{ inputs.monorepo }}
     
     - name: Detect Version Bump
@@ -329,6 +353,10 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         VERSION_PREFIX: ${{ inputs.version-prefix }}
         INITIAL_VERSION: ${{ inputs.initial-version }}
+        PLANNED_VERSION: ${{ inputs.planned-version }}
+        PLANNED_VERSION_TAG: ${{ inputs.planned-version-tag }}
+        PLANNED_VERSION_BUMP_TYPE: ${{ inputs.planned-version-bump-type }}
+        PLANNED_PREVIOUS_VERSION: ${{ inputs.planned-previous-version }}
         PRERELEASE_PREFIX: ${{ inputs.prerelease-prefix }}
         MAJOR_KEYWORDS: ${{ inputs.major-keywords }}
         MINOR_KEYWORDS: ${{ inputs.minor-keywords }}

@@ -164,6 +164,10 @@ jobs:
 | --- | --- | --- |
 | `version-prefix` | Prefix for release tags | `v` |
 | `initial-version` | Fallback version when no tags or manifest version exist | `0.1.0` |
+| `planned-version` | Immutable release version to use instead of recalculating it. Requires the other `planned-*` inputs. | `` |
+| `planned-version-tag` | Immutable release tag to use instead of recalculating it. Must equal `${version-prefix}${planned-version}`. | `` |
+| `planned-version-bump-type` | Immutable release bump type to use instead of recalculating it. Must be `major`, `minor`, or `patch`. | `` |
+| `planned-previous-version` | Immutable previous release version paired with the planned release. Requires the other `planned-*` inputs. | `` |
 | `prerelease-prefix` | Prefix for prerelease versions | `` |
 | `major-keywords` | Comma-separated keywords that trigger major bumps | `BREAKING CHANGE,BREAKING-CHANGE,breaking` |
 | `minor-keywords` | Comma-separated keywords that trigger minor bumps, empty uses convention-aware defaults | `` |
@@ -504,6 +508,26 @@ bash run-tests.sh
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     dry-run: true
+```
+
+### Planned Release Finalization
+
+Use a dry run first to capture the computed release plan from the action outputs, then pass the approved values back on the final run so the release is immutable even if new commits land before finalization.
+
+```yaml
+- id: plan
+  uses: wgtechlabs/release-build-flow-action@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    dry-run: true
+
+- uses: wgtechlabs/release-build-flow-action@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    planned-version: ${{ steps.plan.outputs.version }}
+    planned-version-tag: ${{ steps.plan.outputs.version-tag }}
+    planned-version-bump-type: ${{ steps.plan.outputs.version-bump-type }}
+    planned-previous-version: ${{ steps.plan.outputs.previous-version }}
 ```
 
 ### Custom Workflows

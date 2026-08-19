@@ -62,6 +62,10 @@ VERSION_PREFIX="${VERSION_PREFIX:-v}"
 INITIAL_VERSION="${INITIAL_VERSION:-0.1.0}"
 PRERELEASE_PREFIX="${PRERELEASE_PREFIX:-}"
 COMMIT_CONVENTION="${COMMIT_CONVENTION:-clean-commit}"
+PLANNED_VERSION="${PLANNED_VERSION:-}"
+PLANNED_VERSION_TAG="${PLANNED_VERSION_TAG:-}"
+PLANNED_VERSION_BUMP_TYPE="${PLANNED_VERSION_BUMP_TYPE:-}"
+PLANNED_PREVIOUS_VERSION="${PLANNED_PREVIOUS_VERSION:-}"
 
 # Convention-aware defaults for version bump keywords
 # User-provided values take priority; these only apply when using defaults
@@ -302,66 +306,80 @@ determine_bump_type() {
 
 log_info "Detecting version bump type..."
 
-# Get latest tag
-LATEST_TAG=$(get_latest_tag)
+# Use immutable planned values when provided
+if [[ -n "${PLANNED_VERSION}" ]] && [[ -n "${PLANNED_VERSION_TAG}" ]] && [[ -n "${PLANNED_VERSION_BUMP_TYPE}" ]] && [[ -n "${PLANNED_PREVIOUS_VERSION}" ]]; then
+    PREVIOUS_VERSION="${PLANNED_PREVIOUS_VERSION}"
+    PREVIOUS_TAG="${VERSION_PREFIX}${PLANNED_PREVIOUS_VERSION}"
+    CURRENT_VERSION="${PLANNED_VERSION}"
+    CURRENT_TAG="${PLANNED_VERSION_TAG}"
+    BUMP_TYPE="${PLANNED_VERSION_BUMP_TYPE}"
+    LATEST_TAG="${PREVIOUS_TAG}"
 
-if [[ -z "${LATEST_TAG}" ]]; then
-    log_warning "No previous version tag found"
-    PREVIOUS_VERSION=""
-    PREVIOUS_TAG=""
-    
-    # Fallback chain: manifest file version → initial-version input
-    MANIFEST_VERSION=$(detect_manifest_version)
-    if [[ -n "${MANIFEST_VERSION}" ]]; then
-        CURRENT_VERSION="${MANIFEST_VERSION}"
-        log_info "Using version from manifest file: ${CURRENT_VERSION}"
-    else
-        CURRENT_VERSION="${INITIAL_VERSION}"
-        log_info "Using initial version: ${INITIAL_VERSION}"
-    fi
-    
-    # Check if we have any commits to release
-    COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
-    if [[ "${COMMIT_COUNT}" == "0" ]]; then
-        log_warning "No commits to release"
-        BUMP_TYPE="none"
-    else
-        BUMP_TYPE="patch"
-    fi
+    log_info "Using planned release values"
+    log_info "Planned version: ${CURRENT_VERSION}"
+    log_info "Planned previous version: ${PREVIOUS_VERSION}"
 else
-    log_info "Latest tag: ${LATEST_TAG}"
-    PREVIOUS_TAG="${LATEST_TAG}"
-    PREVIOUS_VERSION=$(extract_version "${LATEST_TAG}")
-    
-    # Check if there are commits since last tag
-    COMMIT_COUNT=$(git rev-list --count "${LATEST_TAG}..HEAD" 2>/dev/null || echo "0")
-    
-    if [[ "${COMMIT_COUNT}" == "0" ]]; then
-        log_warning "No new commits since ${LATEST_TAG}"
-        CURRENT_VERSION="${PREVIOUS_VERSION}"
-        BUMP_TYPE="none"
-    else
-        # Determine bump type from commits streamed as NUL-delimited data
-        BUMP_TYPE=$(get_commits_since_tag "${LATEST_TAG}" | determine_bump_type)
+    # Get latest tag
+    LATEST_TAG=$(get_latest_tag)
+
+    if [[ -z "${LATEST_TAG}" ]]; then
+        log_warning "No previous version tag found"
+        PREVIOUS_VERSION=""
+        PREVIOUS_TAG=""
         
-        if [[ "${BUMP_TYPE}" == "none" ]]; then
-            log_warning "No version-bumping commits found"
-            CURRENT_VERSION="${PREVIOUS_VERSION}"
+        # Fallback chain: manifest file version → initial-version input
+        MANIFEST_VERSION=$(detect_manifest_version)
+        if [[ -n "${MANIFEST_VERSION}" ]]; then
+            CURRENT_VERSION="${MANIFEST_VERSION}"
+            log_info "Using version from manifest file: ${CURRENT_VERSION}"
         else
-            # Bump version
-            CURRENT_VERSION=$(bump_version "${PREVIOUS_VERSION}" "${BUMP_TYPE}")
-            log_success "Version bump: ${PREVIOUS_VERSION} -> ${CURRENT_VERSION} (${BUMP_TYPE})"
+            CURRENT_VERSION="${INITIAL_VERSION}"
+            log_info "Using initial version: ${INITIAL_VERSION}"
+        fi
+        
+        # Check if we have any commits to release
+        COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+        if [[ "${COMMIT_COUNT}" == "0" ]]; then
+            log_warning "No commits to release"
+            BUMP_TYPE="none"
+        else
+            BUMP_TYPE="patch"
+        fi
+    else
+        log_info "Latest tag: ${LATEST_TAG}"
+        PREVIOUS_TAG="${LATEST_TAG}"
+        PREVIOUS_VERSION=$(extract_version "${LATEST_TAG}")
+        
+        # Check if there are commits since last tag
+        COMMIT_COUNT=$(git rev-list --count "${LATEST_TAG}..HEAD" 2>/dev/null || echo "0")
+        
+        if [[ "${COMMIT_COUNT}" == "0" ]]; then
+            log_warning "No new commits since ${LATEST_TAG}"
+            CURRENT_VERSION="${PREVIOUS_VERSION}"
+            BUMP_TYPE="none"
+        else
+            # Determine bump type from commits streamed as NUL-delimited data
+            BUMP_TYPE=$(get_commits_since_tag "${LATEST_TAG}" | determine_bump_type)
+            
+            if [[ "${BUMP_TYPE}" == "none" ]]; then
+                log_warning "No version-bumping commits found"
+                CURRENT_VERSION="${PREVIOUS_VERSION}"
+            else
+                # Bump version
+                CURRENT_VERSION=$(bump_version "${PREVIOUS_VERSION}" "${BUMP_TYPE}")
+                log_success "Version bump: ${PREVIOUS_VERSION} -> ${CURRENT_VERSION} (${BUMP_TYPE})"
+            fi
         fi
     fi
-fi
 
-# Add prerelease prefix if configured
-if [[ -n "${PRERELEASE_PREFIX}" ]] && [[ "${BUMP_TYPE}" != "none" ]]; then
-    CURRENT_VERSION="${CURRENT_VERSION}-${PRERELEASE_PREFIX}"
-fi
+    # Add prerelease prefix if configured
+    if [[ -n "${PRERELEASE_PREFIX}" ]] && [[ "${BUMP_TYPE}" != "none" ]]; then
+        CURRENT_VERSION="${CURRENT_VERSION}-${PRERELEASE_PREFIX}"
+    fi
 
-# Generate full tag
-CURRENT_TAG="${VERSION_PREFIX}${CURRENT_VERSION}"
+    # Generate full tag
+    CURRENT_TAG="${VERSION_PREFIX}${CURRENT_VERSION}"
+fi
 
 # Output results
 echo "version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
