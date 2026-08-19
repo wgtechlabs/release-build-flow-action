@@ -512,7 +512,7 @@ bash run-tests.sh
 
 ### Planned Release Finalization
 
-Use a dry run first to capture the computed release plan from the action outputs, then pass the approved values back on the final run so the release is immutable even if new commits land before finalization.
+Use a dry run first to capture the computed release plan from the action outputs, then pass the approved values back on the final run so the release is immutable even if new commits land before finalization. This two-phase flow applies only when the dry run returns an existing `previous-version` from a repository that already has a prior release. For a first release with no prior tag, omit all `planned-*` inputs and let the normal calculated-release path determine the version.
 
 ```yaml
 - id: plan
