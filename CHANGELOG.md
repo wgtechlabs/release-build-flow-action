@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 
+## [1.8.0] - 2026-08-20
+
+### Added
+
+- add immutable planned release inputs (#31)
+
+### Changed
+
+- accept compatible planned release plans (#33)
+- fail fast on prerelease prefix with planned inputs
+
 ## [1.7.0] - 2026-03-09
 
 ### Added
