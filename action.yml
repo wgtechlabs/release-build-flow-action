@@ -31,7 +31,7 @@ inputs:
     default: '0.1.0'
 
   planned-version:
-    description: 'Immutable release version to use instead of recalculating it (plain X.Y.Z)'
+    description: 'Immutable release version to use instead of recalculating it (valid SemVer)'
     required: false
     default: ''
 
@@ -46,7 +46,7 @@ inputs:
     default: ''
 
   planned-previous-version:
-    description: 'Immutable previous release version paired with the planned release (plain X.Y.Z)'
+    description: 'Previous release version paired with the plan (empty for an initial release; valid SemVer otherwise)'
     required: false
     default: ''
   

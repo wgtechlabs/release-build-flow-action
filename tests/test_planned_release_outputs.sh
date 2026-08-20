@@ -24,7 +24,7 @@ trap cleanup EXIT
 create_repo() {
     local repo_dir="$1"
     local commit_subject="$2"
-    local initial_tag="${3:-v1.0.0}"
+    local initial_tag="${3-v1.0.0}"
 
     rm -rf "${repo_dir}"
     mkdir -p "${repo_dir}"
@@ -41,7 +41,9 @@ create_repo() {
 EOF
         git add README.md
         git commit --quiet -m "chore: initial release"
-        git tag "${initial_tag}"
+        if [[ -n "${initial_tag}" ]]; then
+            git tag "${initial_tag}"
+        fi
 
         printf '\n%s\n' "${commit_subject}" >> README.md
         git add README.md
@@ -143,6 +145,20 @@ assert_output "Planned release uses provided tag" "${planned_repo}/github-output
 assert_output "Planned release uses provided previous version" "${planned_repo}/github-output.txt" "previous-version" "1.9.0"
 assert_output "Planned release exposes derived previous tag" "${planned_repo}/github-output.txt" "previous-tag" "v1.9.0"
 assert_output "Planned release uses provided bump type" "${planned_repo}/github-output.txt" "version-bump-type" "major"
+
+initial_planned_repo="${TEST_ROOT}/initial-planned"
+create_repo "${initial_planned_repo}" "feat: finalize initial planned release" ""
+run_detect "${initial_planned_repo}" \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=0.1.0 \
+    PLANNED_VERSION=0.1.0-beta.1+build.7 \
+    PLANNED_VERSION_TAG=v0.1.0-beta.1+build.7 \
+    PLANNED_VERSION_BUMP_TYPE=patch \
+    PLANNED_PREVIOUS_VERSION=
+
+assert_output "Initial planned release uses provided prerelease version" "${initial_planned_repo}/github-output.txt" "version" "0.1.0-beta.1+build.7"
+assert_output "Initial planned release has no previous version" "${initial_planned_repo}/github-output.txt" "previous-version" ""
+assert_output "Initial planned release has no previous tag" "${initial_planned_repo}/github-output.txt" "previous-tag" ""
 
 missing_tag_repo="${TEST_ROOT}/missing-tag"
 create_repo "${missing_tag_repo}" "feat: finalize planned release"

@@ -110,7 +110,7 @@ run_success_test "Validation accepts planned release inputs for unified-version 
     PLANNED_VERSION_BUMP_TYPE=major \
     PLANNED_PREVIOUS_VERSION=1.9.0
 
-run_failure_test "Validation rejects planned release inputs for per-package monorepos" \
+run_success_test "Validation accepts planned release inputs for per-package monorepos" \
     run_validate \
     MAIN_BRANCH=main \
     CURRENT_BRANCH=main \
@@ -123,7 +123,7 @@ run_failure_test "Validation rejects planned release inputs for per-package mono
     PLANNED_VERSION_BUMP_TYPE=major \
     PLANNED_PREVIOUS_VERSION=1.9.0
 
-run_failure_test "Validation rejects planned release values with prerelease and build metadata" \
+run_success_test "Validation accepts planned release values with prerelease and build metadata" \
     run_validate \
     MAIN_BRANCH=main \
     CURRENT_BRANCH=main \
@@ -133,6 +133,17 @@ run_failure_test "Validation rejects planned release values with prerelease and 
     PLANNED_VERSION_TAG=v2.0.0-beta.1+build.7 \
     PLANNED_VERSION_BUMP_TYPE=major \
     PLANNED_PREVIOUS_VERSION=1.9.0-rc.1+build.2
+
+run_success_test "Validation accepts an initial planned release without a previous version" \
+    run_validate \
+    MAIN_BRANCH=main \
+    CURRENT_BRANCH=main \
+    VERSION_PREFIX=v \
+    INITIAL_VERSION=1.2.3 \
+    PLANNED_VERSION=2.0.0 \
+    PLANNED_VERSION_TAG=v2.0.0 \
+    PLANNED_VERSION_BUMP_TYPE=major \
+    PLANNED_PREVIOUS_VERSION=
 
 run_failure_test "Validation fails when planned release inputs are incomplete" \
     run_validate \

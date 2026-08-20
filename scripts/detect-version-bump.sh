@@ -311,7 +311,7 @@ determine_bump_type() {
 log_info "Detecting version bump type..."
 
 # Use immutable planned values when provided
-if [[ -n "${PLANNED_VERSION}" ]] && [[ -n "${PLANNED_VERSION_TAG}" ]] && [[ -n "${PLANNED_VERSION_BUMP_TYPE}" ]] && [[ -n "${PLANNED_PREVIOUS_VERSION}" ]]; then
+if [[ -n "${PLANNED_VERSION}" ]] && [[ -n "${PLANNED_VERSION_TAG}" ]] && [[ -n "${PLANNED_VERSION_BUMP_TYPE}" ]]; then
     if [[ -n "${PRERELEASE_PREFIX}" ]]; then
         log_error "prerelease-prefix cannot be combined with planned release inputs"
         log_error "Planned release finalization publishes the planned version verbatim"
@@ -320,17 +320,22 @@ if [[ -n "${PLANNED_VERSION}" ]] && [[ -n "${PLANNED_VERSION_TAG}" ]] && [[ -n "
     fi
 
     PREVIOUS_VERSION="${PLANNED_PREVIOUS_VERSION}"
-    PREVIOUS_TAG="${VERSION_PREFIX}${PLANNED_PREVIOUS_VERSION}"
+    PREVIOUS_TAG=""
+    if [[ -n "${PREVIOUS_VERSION}" ]]; then
+        PREVIOUS_TAG="${VERSION_PREFIX}${PREVIOUS_VERSION}"
+    fi
     CURRENT_VERSION="${PLANNED_VERSION}"
     CURRENT_TAG="${PLANNED_VERSION_TAG}"
     BUMP_TYPE="${PLANNED_VERSION_BUMP_TYPE}"
     LATEST_TAG="${PREVIOUS_TAG}"
 
-    fetch_tags
-    if ! git rev-parse -q --verify "refs/tags/${PREVIOUS_TAG}" >/dev/null 2>&1; then
-        log_error "Planned previous tag ${PREVIOUS_TAG} is unavailable after fetching tags"
-        log_error "Planned release finalization requires an existing prior release tag"
-        exit 1
+    if [[ -n "${PREVIOUS_TAG}" ]]; then
+        fetch_tags
+        if ! git rev-parse -q --verify "refs/tags/${PREVIOUS_TAG}" >/dev/null 2>&1; then
+            log_error "Planned previous tag ${PREVIOUS_TAG} is unavailable after fetching tags"
+            log_error "Planned release finalization requires an existing prior release tag"
+            exit 1
+        fi
     fi
 
     log_info "Using planned release values"

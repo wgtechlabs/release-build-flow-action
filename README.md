@@ -164,10 +164,10 @@ jobs:
 | --- | --- | --- |
 | `version-prefix` | Prefix for release tags | `v` |
 | `initial-version` | Fallback version when no tags or manifest version exist. Uses plain `X.Y.Z`. | `0.1.0` |
-| `planned-version` | Immutable release version to use instead of recalculating it. Requires the other `planned-*` inputs, an existing prior tag, and plain `X.Y.Z`. Supported for single-package releases and monorepos with `unified-version: true`. | `` |
+| `planned-version` | Immutable release version to use instead of recalculating it. Requires `planned-version-tag` and `planned-version-bump-type`, and accepts valid SemVer including prerelease and build suffixes. | `` |
 | `planned-version-tag` | Immutable release tag to use instead of recalculating it. Must equal `${version-prefix}${planned-version}`. | `` |
 | `planned-version-bump-type` | Immutable release bump type to use instead of recalculating it. Must be `major`, `minor`, or `patch`. | `` |
-| `planned-previous-version` | Immutable previous release version paired with the planned release. Requires the other `planned-*` inputs, an existing prior tag, and plain `X.Y.Z`. | `` |
+| `planned-previous-version` | Previous release version paired with the plan. Leave empty for an initial release; otherwise it must be valid SemVer and its tag must exist. | `` |
 | `prerelease-prefix` | Prefix for prerelease versions | `` |
 | `major-keywords` | Comma-separated keywords that trigger major bumps | `BREAKING CHANGE,BREAKING-CHANGE,breaking` |
 | `minor-keywords` | Comma-separated keywords that trigger minor bumps, empty uses convention-aware defaults | `` |
@@ -512,7 +512,7 @@ bash run-tests.sh
 
 ### Planned Release Finalization
 
-Use a dry run first to capture the computed release plan from the action outputs, then pass the approved values back on the final run so the release is immutable even if new commits land before finalization. The planned values must use the action's supported release format (`X.Y.Z`); prerelease or build suffixes are not supported here. This two-phase flow applies only when the dry run returns an existing `previous-version` from a repository that already has a prior release, because finalization verifies that prior tag still exists after fetching tags. Immutable planned releases are supported for single-package repositories and monorepos with `unified-version: true`. Per-package monorepos must use the normal recalculated path. For a first release with no prior tag, omit all `planned-*` inputs and let the normal calculated-release path determine the version.
+Use a dry run first to capture the computed release plan from the action outputs, then pass the approved values back on the final run so the root release remains immutable even if new commits land before finalization. `planned-version`, `planned-version-tag`, and `planned-version-bump-type` are required together; `planned-previous-version` may be empty for a first release. Planned versions support valid SemVer, including prerelease and build suffixes. When a previous version is supplied, finalization verifies its tag still exists after fetching tags. Note that automatic tag discovery only recognizes plain `X.Y.Z` tags as previous releases, so if you release a prerelease or build-metadata tag (e.g., `v0.1.0-beta.1+build.7`), later runs will not treat it as the latest tag and will plan versions from the most recent plain `X.Y.Z` tag instead. This applies to single-package repositories and both unified and per-package monorepos; per-package processing continues with its normal package calculations.
 
 ```yaml
 - id: plan

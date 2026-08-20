@@ -41,14 +41,19 @@ log_warning() {
     echo -e "${YELLOW}⚠️  $1${NC}" >&2
 }
 
-SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+SEMVER_CORE='(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
+PLAIN_SEMVER_PATTERN="^${SEMVER_CORE}$"
+SEMVER_IDENTIFIER='(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)'
+SEMVER_PATTERN="^${SEMVER_CORE}(-${SEMVER_IDENTIFIER}(\\.${SEMVER_IDENTIFIER})*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
 
 validate_semver() {
     local value="$1"
     local name="$2"
+    local pattern="$3"
+    local format="$4"
 
-    if ! [[ "${value}" =~ ${SEMVER_PATTERN} ]]; then
-        log_error "${name} must be plain X.Y.Z (e.g., 0.1.0 or 1.2.3)"
+    if ! [[ "${value}" =~ ${pattern} ]]; then
+        log_error "${name} must be ${format}"
         exit 1
     fi
 }
@@ -76,28 +81,34 @@ fi
 
 # Validate initial version format (SemVer)
 if [[ -n "${INITIAL_VERSION:-}" ]]; then
-    validate_semver "${INITIAL_VERSION}" "initial-version"
+    validate_semver "${INITIAL_VERSION}" "initial-version" "${PLAIN_SEMVER_PATTERN}" "plain X.Y.Z (e.g., 0.1.0 or 1.2.3)"
 fi
 
 planned_input_count=0
 for planned_value in \
     "${PLANNED_VERSION:-}" \
     "${PLANNED_VERSION_TAG:-}" \
-    "${PLANNED_VERSION_BUMP_TYPE:-}" \
-    "${PLANNED_PREVIOUS_VERSION:-}"; do
+    "${PLANNED_VERSION_BUMP_TYPE:-}"; do
     if [[ -n "${planned_value}" ]]; then
         planned_input_count=$((planned_input_count + 1))
     fi
 done
 
-if [[ "${planned_input_count}" -ne 0 ]] && [[ "${planned_input_count}" -ne 4 ]]; then
-    log_error "planned-version, planned-version-tag, planned-version-bump-type, and planned-previous-version must all be provided together"
+if [[ "${planned_input_count}" -ne 0 ]] && [[ "${planned_input_count}" -ne 3 ]]; then
+    log_error "planned-version, planned-version-tag, and planned-version-bump-type must be provided together"
     exit 1
 fi
 
-if [[ "${planned_input_count}" -eq 4 ]]; then
-    validate_semver "${PLANNED_VERSION}" "planned-version"
-    validate_semver "${PLANNED_PREVIOUS_VERSION}" "planned-previous-version"
+if [[ "${planned_input_count}" -eq 0 ]] && [[ -n "${PLANNED_PREVIOUS_VERSION:-}" ]]; then
+    log_error "planned-previous-version requires planned-version, planned-version-tag, and planned-version-bump-type to be provided together"
+    exit 1
+fi
+
+if [[ "${planned_input_count}" -eq 3 ]]; then
+    validate_semver "${PLANNED_VERSION}" "planned-version" "${SEMVER_PATTERN}" "valid SemVer (e.g., 0.1.0 or 1.2.3-beta.1+build.5)"
+    if [[ -n "${PLANNED_PREVIOUS_VERSION:-}" ]]; then
+        validate_semver "${PLANNED_PREVIOUS_VERSION}" "planned-previous-version" "${SEMVER_PATTERN}" "valid SemVer (e.g., 0.1.0 or 1.2.3-beta.1+build.5)"
+    fi
 
     case "${PLANNED_VERSION_BUMP_TYPE}" in
         major|minor|patch)
@@ -111,11 +122,6 @@ if [[ "${planned_input_count}" -eq 4 ]]; then
     expected_planned_tag="${VERSION_PREFIX:-}${PLANNED_VERSION}"
     if [[ "${PLANNED_VERSION_TAG}" != "${expected_planned_tag}" ]]; then
         log_error "planned-version-tag must match ${expected_planned_tag} (got: ${PLANNED_VERSION_TAG})"
-        exit 1
-    fi
-
-    if [[ "${MONOREPO:-false}" == "true" ]] && [[ "${UNIFIED_VERSION:-false}" != "true" ]]; then
-        log_error "planned-* inputs are supported only for single-package releases and monorepos with unified-version=true"
         exit 1
     fi
 fi
