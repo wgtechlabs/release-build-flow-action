@@ -163,7 +163,11 @@ jobs:
 | Input | Description | Default |
 | --- | --- | --- |
 | `version-prefix` | Prefix for release tags | `v` |
-| `initial-version` | Fallback version when no tags or manifest version exist | `0.1.0` |
+| `initial-version` | Fallback version when no tags or manifest version exist. Uses plain `X.Y.Z`. | `0.1.0` |
+| `planned-version` | Immutable release version to use instead of recalculating it. Requires `planned-version-tag` and `planned-version-bump-type`, and accepts valid SemVer including prerelease and build suffixes. | `` |
+| `planned-version-tag` | Immutable release tag to use instead of recalculating it. Must equal `${version-prefix}${planned-version}`. | `` |
+| `planned-version-bump-type` | Immutable release bump type to use instead of recalculating it. Must be `major`, `minor`, or `patch`. | `` |
+| `planned-previous-version` | Previous release version paired with the plan. Leave empty for an initial release; otherwise it must be valid SemVer and its tag must exist. | `` |
 | `prerelease-prefix` | Prefix for prerelease versions | `` |
 | `major-keywords` | Comma-separated keywords that trigger major bumps | `BREAKING CHANGE,BREAKING-CHANGE,breaking` |
 | `minor-keywords` | Comma-separated keywords that trigger minor bumps, empty uses convention-aware defaults | `` |
@@ -504,6 +508,26 @@ bash run-tests.sh
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     dry-run: true
+```
+
+### Planned Release Finalization
+
+Use a dry run first to capture the computed release plan from the action outputs, then pass the approved values back on the final run so the root release remains immutable even if new commits land before finalization. `planned-version`, `planned-version-tag`, and `planned-version-bump-type` are required together; `planned-previous-version` may be empty for a first release. Planned versions support valid SemVer, including prerelease and build suffixes. When a previous version is supplied, finalization verifies its tag still exists after fetching tags. Note that automatic tag discovery only recognizes plain `X.Y.Z` tags as previous releases, so if you release a prerelease or build-metadata tag (e.g., `v0.1.0-beta.1+build.7`), later runs will not treat it as the latest tag and will plan versions from the most recent plain `X.Y.Z` tag instead. This applies to single-package repositories and both unified and per-package monorepos; per-package processing continues with its normal package calculations.
+
+```yaml
+- id: plan
+  uses: wgtechlabs/release-build-flow-action@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    dry-run: true
+
+- uses: wgtechlabs/release-build-flow-action@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    planned-version: ${{ steps.plan.outputs.version }}
+    planned-version-tag: ${{ steps.plan.outputs.version-tag }}
+    planned-version-bump-type: ${{ steps.plan.outputs.version-bump-type }}
+    planned-previous-version: ${{ steps.plan.outputs.previous-version }}
 ```
 
 ### Custom Workflows
