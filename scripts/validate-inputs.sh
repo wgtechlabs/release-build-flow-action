@@ -94,8 +94,13 @@ for planned_value in \
     fi
 done
 
-if { [[ "${planned_input_count}" -ne 0 ]] && [[ "${planned_input_count}" -ne 3 ]]; } || { [[ "${planned_input_count}" -eq 0 ]] && [[ -n "${PLANNED_PREVIOUS_VERSION:-}" ]]; }; then
+if [[ "${planned_input_count}" -ne 0 ]] && [[ "${planned_input_count}" -ne 3 ]]; then
     log_error "planned-version, planned-version-tag, and planned-version-bump-type must be provided together"
+    exit 1
+fi
+
+if [[ "${planned_input_count}" -eq 0 ]] && [[ -n "${PLANNED_PREVIOUS_VERSION:-}" ]]; then
+    log_error "planned-previous-version requires planned-version, planned-version-tag, and planned-version-bump-type to be provided together"
     exit 1
 fi
 
