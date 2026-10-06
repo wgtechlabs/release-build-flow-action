@@ -420,15 +420,17 @@ jobs:
     echo "Fixed: ${{ steps.release.outputs.fixed-count }}"
 ```
 
-### Example 5: Downstream Release Triggers
+### Example 5: Built-in Release Token
 
-Releases created with the default `GITHUB_TOKEN` do not trigger other workflows listening for `release` events in the same repository. Use a PAT or GitHub App token if you need downstream release workflows.
+Use the built-in `GITHUB_TOKEN` for release commits, tags, and GitHub Releases. Grant `contents: write` in the workflow. No personal access token or custom token secret is needed.
 
 ```yaml
 - uses: wgtechlabs/release-build-flow-action@v1
   with:
-    github-token: ${{ secrets.GH_PAT }}
+    github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+Releases created with `GITHUB_TOKEN` do not trigger other workflows listening for `release` events in the same repository. Build and publish artifacts before creating the release in the same workflow, or use [Build Flow](https://github.com/wgtechlabs/build-flow-action) to coordinate those jobs. See [GitHub's workflow trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow).
 
 ## Conventional Commit Examples
 
@@ -575,7 +577,7 @@ Use scoped commits, verify package paths, or provide `scope-package-mapping`.
 
 ### Downstream workflows not triggered
 
-Use a PAT or GitHub App token instead of the default `GITHUB_TOKEN` when another workflow depends on `release` events.
+Keep using the built-in `GITHUB_TOKEN`. Its release events do not start other workflows. Move artifact builds into the same workflow before release creation, or use [Build Flow](https://github.com/wgtechlabs/build-flow-action) to coordinate them. Use the action's outputs for later steps in the same workflow.
 
 ## License
 
